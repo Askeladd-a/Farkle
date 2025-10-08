@@ -3,6 +3,8 @@ local scoring = require("lib.scoring")
 local AIController = require("lib.ai")
 local EmbeddedAssets = require("lib.embedded_assets")
 local CrashReporter = require("lib.crash_reporter")
+local Layout = require("src.layout")
+local Render = require("src.render")
 
 local table_insert = table.insert
 local table_remove = table.remove
@@ -53,6 +55,7 @@ local fonts = {}
 local winningScore = 10000
 local backgroundStripes = {}
 local customCursor
+local boardImage = nil
 
 local function copyRect(rect)
     if not rect then
@@ -110,255 +113,7 @@ local function setupStripes(height)
 end
 
 -- === LAYOUT COMPUTATION ===
-local function computeHudSpacing()
-    local smallHeight = fonts.small and fonts.small:getHeight() or 22
-    local titleHeight = fonts.h2 and fonts.h2:getHeight() or 48
-    local paddingTop = math.max(24, smallHeight * 0.9)
-    local paddingBottom = math.max(28, smallHeight * 0.9)
-    local headerGap = math.max(18, smallHeight * 0.6)
-    local rowGap = math.max(16, smallHeight * 0.55)
-
-    local spacing = {
-        paddingTop = paddingTop,
-        paddingBottom = paddingBottom,
-        headerGap = headerGap,
-        rowGap = rowGap,
-        titleHeight = titleHeight,
-        headerHeight = smallHeight,
-        rowHeight = smallHeight,
-    }
-
-    spacing.totalHeight = spacing.paddingTop + spacing.titleHeight + spacing.headerGap
-        + spacing.headerHeight + spacing.rowHeight * 3 + spacing.rowGap * 3 + spacing.paddingBottom
-
-    return spacing
-end
-
-local function setupLayout(width, height)
-    -- Margini base
-    local marginY = math.max(32, height * 0.06)
-    if marginY * 2 >= height then
-        marginY = math.max(20, height / 2 - 8)
-    end
-    local marginX = math.max(24, width * 0.05)
-    if marginX * 2 >= width then
-        marginX = math.max(16, width / 2 - 8)
-    end
-    local hudSpacing = computeHudSpacing()
-
-    -- Parametri pulsanti
-    local buttonHeight = 56
-    local buttonGap = 18
-    local panelPadding = 16
-    local buttonCount = #BUTTON_LABELS
-    local buttonColumnHeight = buttonHeight * buttonCount + buttonGap * (buttonCount - 1)
-
-    -- Layout detection
-    local baseButtonWidth = math.min(280, math.max(200, width * 0.18))
-    local sideSpacing = math.max(24, width * 0.03)
-    local boardAreaWidth = width - marginX * 2 - baseButtonWidth - sideSpacing
-    local minBoardAreaWidth = 520
-    local stackedLayout = boardAreaWidth < minBoardAreaWidth
-
-    -- === HUD SETUP ===
-    local hudWidth
-    local hudX
-    local hudY = marginY
-
-    if stackedLayout then
-        hudWidth = width - marginX * 2
-        hudX = marginX
-    else
-        hudWidth = math.min(math.max(300, boardAreaWidth * 0.75), boardAreaWidth)  -- Ridotto da 0.92 a 0.75
-        hudX = marginX + (boardAreaWidth - hudWidth) / 2
-    end
-
-    game.layout.hud = {
-        x = hudX,
-        y = hudY,
-        w = hudWidth,
-        h = hudSpacing.totalHeight,
-    }
-    game.layout.hudSpacing = hudSpacing
-
-    -- === BOARD SETUP ===
-    local hudToBoardSpacing = math.max(stackedLayout and 28 or 40, height * 0.04)
-    local boardWidthArea = stackedLayout and (width - marginX * 2) or boardAreaWidth
-    local messageMinHeight = math.max(110, (fonts.body and fonts.body:getHeight() or 24) * 3)
-    local buttonPanelWidth = stackedLayout and math.min(360, width - marginX * 2) or baseButtonWidth
-    local panelHeight = buttonColumnHeight + panelPadding * 2
-    local boardX
-    local boardY = hudY + hudSpacing.totalHeight + hudToBoardSpacing
-    local messageSpacing = math.max(28, height * 0.035)
-
-    local availableHeight = height - marginY - boardY - panelHeight - messageSpacing - messageMinHeight
-    if not stackedLayout then
-        availableHeight = height - marginY * 2 - hudSpacing.totalHeight - hudToBoardSpacing - messageSpacing - messageMinHeight
-    end
-    
-    -- RENDI LA BOARD MOLTO PIÙ GRANDE: Aumenta drasticamente le dimensioni
-    local minBoardHeight = math.max(height * 0.6, Dice.SIZE * 4.5)  -- Aumentato da 0.45 a 0.6
-    local maxBoardHeight = math.max(availableHeight, minBoardHeight)
-
-    -- RENDI LA BOARD MOLTO PIÙ LARGA: Usa quasi tutto lo spazio disponibile
-    local boardWidth = math.min(boardWidthArea * 0.95, maxBoardHeight * (4 / 3))  -- Usa 95% dello spazio
-    local boardHeight = boardWidth * (3 / 4)
-    if boardHeight > maxBoardHeight then
-        boardHeight = maxBoardHeight
-        boardWidth = math.min(boardWidthArea * 0.95, boardHeight * (4 / 3))  -- Usa 95% dello spazio
-    end
-
-    boardX = (width - boardWidth) / 2
-    if not stackedLayout then
-        boardX = marginX + (boardAreaWidth - boardWidth) / 2
-    end
-
-    game.layout.board = {x = boardX, y = boardY, w = boardWidth, h = boardHeight}
-    game.layout.hingeY = boardY + boardHeight * 0.68
-    game.layout.mode = stackedLayout and "stacked" or "wide"
-
-    -- === TRAYS SETUP ===
-    local desiredTrayWidth = stackedLayout and boardWidth * 0.66 or boardWidth * 0.72
-    local maxTrayWidth = math.max(boardWidth - 2 * (Dice.SIZE + 40), boardWidth * 0.5)
-    local trayWidth = math.min(desiredTrayWidth, maxTrayWidth)
-    trayWidth = math.max(trayWidth, Dice.SIZE * 3)
-    local trayHeight = math.max(Dice.SIZE * 1.6, boardHeight * 0.18)
-    local sideSpace = math.max(32, (boardWidth - trayWidth) / 2)
-    local trayX = boardX + (boardWidth - trayWidth) / 2
-    local traySpacing = math.max(stackedLayout and 28 or 32, boardHeight * 0.08)
-
-    game.layout.trays.ai = {
-        x = trayX,
-        y = boardY + traySpacing,
-        w = trayWidth,
-        h = trayHeight,
-    }
-    game.layout.trays.player = {
-        x = trayX,
-        y = boardY + boardHeight - trayHeight - traySpacing,
-        w = trayWidth,
-        h = trayHeight,
-    }
-
-    -- === KEPT DICE COLUMNS ===
-    local useStackedKept = stackedLayout and sideSpace < Dice.SIZE + 20
-    if useStackedKept then
-        local keptHeight = math.max(Dice.SIZE + 16, trayHeight * 0.75)
-        local aiY = game.layout.trays.ai.y - keptHeight - 12
-        if aiY < boardY + 12 then
-            aiY = boardY + 12
-        end
-        local playerY = game.layout.trays.player.y + trayHeight + 12
-        local maxPlayerY = boardY + boardHeight - keptHeight - 12
-        if playerY > maxPlayerY then
-            playerY = maxPlayerY
-        end
-
-        game.layout.kept.ai = {
-            x = trayX,
-            y = aiY,
-            w = trayWidth,
-            h = keptHeight,
-        }
-        game.layout.kept.player = {
-            x = trayX,
-            y = playerY,
-            w = trayWidth,
-            h = keptHeight,
-        }
-    else
-        local maxBySpace = math.max(24, sideSpace - 8)
-        local targetWidth = math.min(math.max(Dice.SIZE + 12, sideSpace - 12), boardWidth * 0.22)
-        local keptWidth = math.min(targetWidth, maxBySpace)
-        if maxBySpace >= Dice.SIZE + 12 then
-            keptWidth = math.max(keptWidth, Dice.SIZE + 12)
-        end
-        local keptOffset = math.max(8, (sideSpace - keptWidth) / 2)
-
-        game.layout.kept.ai = {
-            x = boardX + keptOffset,
-            y = game.layout.trays.ai.y,
-            w = keptWidth,
-            h = trayHeight,
-        }
-        game.layout.kept.player = {
-            x = boardX + boardWidth - keptWidth - keptOffset,
-            y = game.layout.trays.player.y,
-            w = keptWidth,
-            h = trayHeight,
-        }
-    end
-
-    -- === MESSAGE & BUTTONS PANEL ===
-    local messageWidth = stackedLayout and (width - marginX * 2) or boardWidth
-    local messageX = stackedLayout and marginX or boardX
-    local messageYBase = boardY + boardHeight + messageSpacing
-
-    local panelX
-    local panelY
-    local panelW = buttonPanelWidth
-    local panelH = panelHeight
-
-    if stackedLayout then
-        panelX = (width - panelW) / 2
-        panelY = messageYBase
-        messageYBase = panelY + panelH + messageSpacing
-    else
-        panelX = marginX + boardAreaWidth + sideSpacing
-        panelY = boardY + (boardHeight - panelH) / 2
-        if panelY < marginY then
-            panelY = marginY
-        end
-        if panelY + panelH > height - marginY then
-            panelY = math.max(marginY, height - marginY - panelH)
-        end
-    end
-
-    local buttonInnerWidth = math.max(120, panelW - panelPadding * 2)
-    if buttonInnerWidth > panelW - 8 then
-        buttonInnerWidth = panelW - 8
-    end
-    local buttonOffsetX = (panelW - buttonInnerWidth) / 2
-
-    game.layout.buttons = {
-        x = panelX + buttonOffsetX,
-        y = panelY + panelPadding,
-        w = buttonInnerWidth,
-        h = buttonHeight,
-        spacing = buttonGap,
-        panel = {x = panelX, y = panelY, w = panelW, h = panelH},
-    }
-
-    local availableMessageHeight = height - messageYBase - marginY
-    local messageHeight
-    if availableMessageHeight <= 0 then
-        messageHeight = messageMinHeight
-        messageYBase = math.max(marginY, height - marginY - messageHeight)
-    else
-        messageHeight = math.max(messageMinHeight, availableMessageHeight)
-        if messageHeight > availableMessageHeight then
-            local shift = messageHeight - availableMessageHeight
-            messageYBase = math.max(marginY, messageYBase - shift)
-            availableMessageHeight = height - messageYBase - marginY
-            if availableMessageHeight > 0 and messageHeight > availableMessageHeight then
-                messageHeight = availableMessageHeight
-            elseif availableMessageHeight <= 0 then
-                messageHeight = messageMinHeight
-                messageYBase = math.max(marginY, height - marginY - messageHeight)
-            end
-        end
-    end
-
-    game.layout.message = {
-        x = messageX,
-        y = messageYBase,
-        w = messageWidth,
-        h = math.max(60, messageHeight),
-        padding = math.max(18, (fonts.body and fonts.body:getHeight() or 24) * 0.75),
-    }
-    
-    game.buttonsNeedRefresh = true
-end
+-- Layout logic now in src/layout.lua
 
 local function refreshFonts(width, height)
     local base = math.min(width, height)
@@ -395,6 +150,10 @@ local function startNewGame()
     game.state = "playing"
     game.winner = nil
     game.buttonsNeedRefresh = true
+    -- Forza il ricalcolo del layout per evitare crash
+    if love.graphics and love.graphics.getWidth then
+        love.resize(love.graphics.getWidth(), love.graphics.getHeight())
+    end
 end
 
 local function endTurn(msg)
@@ -670,23 +429,29 @@ end
 
 local function drawBoard()
     local board = game.layout.board
-    love.graphics.setColor(0.26, 0.16, 0.09)
-    love.graphics.rectangle("fill", board.x, board.y, board.w, board.h, 36, 36)
-    love.graphics.setColor(0.15, 0.1, 0.06)
-    love.graphics.setLineWidth(4)
-    love.graphics.rectangle("line", board.x + 4, board.y + 4, board.w - 8, board.h - 8, 32, 32)
-    love.graphics.setColor(0.18, 0.12, 0.07)
-    love.graphics.setLineWidth(6)
-    local hingeY = game.layout.hingeY
-    love.graphics.line(board.x + 60, hingeY, board.x + board.w - 60, hingeY)
+    if boardImage and board.scale then
+        love.graphics.setColor(1,1,1)
+        love.graphics.draw(boardImage, board.x, board.y, 0, board.scale, board.scale)
+    else
+        love.graphics.setColor(0.26, 0.16, 0.09)
+        love.graphics.rectangle("fill", board.x, board.y, board.w, board.h, 36, 36)
+        love.graphics.setColor(0.15, 0.1, 0.06)
+        love.graphics.setLineWidth(4)
+        love.graphics.rectangle("line", board.x + 4, board.y + 4, board.w - 8, board.h - 8, 32, 32)
+        love.graphics.setColor(0.18, 0.12, 0.07)
+        love.graphics.setLineWidth(6)
+        local hingeY = board.y + board.h * 0.68
+        love.graphics.line(board.x + 60, hingeY, board.x + board.w - 60, hingeY)
+    end
 end
 
 local function drawTray(tray)
-    love.graphics.setColor(0.19, 0.12, 0.07)
-    love.graphics.rectangle("fill", tray.x, tray.y, tray.w, tray.h, 24, 24)
-    love.graphics.setColor(0.12, 0.08, 0.05)
-    love.graphics.setLineWidth(3)
-    love.graphics.rectangle("line", tray.x, tray.y, tray.w, tray.h, 24, 24)
+    -- Semi-transparent trays so the wooden board shows through
+    love.graphics.setColor(0.12, 0.08, 0.05, 0.75)
+    love.graphics.rectangle("fill", tray.x, tray.y, tray.w, tray.h, 18, 18)
+    love.graphics.setColor(0.12, 0.08, 0.05, 0.95)
+    love.graphics.setLineWidth(2)
+    love.graphics.rectangle("line", tray.x + 1, tray.y + 1, tray.w - 2, tray.h - 2, 18, 18)
 end
 
 local function drawHUD()
@@ -796,78 +561,79 @@ local function buttonEnabled(label)
         if game.selection.valid and game.selection.points > 0 then
             return true
         end
-        return game.roundScore > 0
-    elseif label == "Guide" then
-        return true
-    elseif label == "Main Menu" then
-        return true
-    end
-    return false
-end
+        local function drawHUD()
+            local spacing = game.layout.hudSpacing or computeHudSpacing()
+            local huds = {game.layout.hudLeft, game.layout.hudRight}
+            for _, hud in ipairs(huds) do
+                if hud then
+                    love.graphics.setColor(0.13, 0.10, 0.08, 0.92)
+                    love.graphics.rectangle("fill", hud.x, hud.y, hud.w, hud.h, 18, 18)
+                    love.graphics.setColor(0.35, 0.27, 0.18)
+                    love.graphics.setLineWidth(2)
+                    love.graphics.rectangle("line", hud.x + 4, hud.y + 4, hud.w - 8, hud.h - 8, 14, 14)
 
-local function executeButton(label)
-    if label == "Roll Dice" then
-        attemptRoll()
-    elseif label == "Bank Points" then
-        attemptBank()
-    elseif label == "Guide" then
-        game.showGuide = not game.showGuide
-    elseif label == "Main Menu" then
-        game.state = "menu"
-    end
-    game.buttonsNeedRefresh = true
-end
+                    love.graphics.setFont(fonts.h2)
+                    love.graphics.setColor(0.98, 0.95, 0.85)
+                    local y = hud.y + spacing.paddingTop
+                    love.graphics.printf("SCOREBOARD", hud.x, y, hud.w, "center")
 
-local function rebuildButtons()
-    game.buttons = {}
-    local layout = game.layout.buttons
-    local y = layout.y
-    for _, label in ipairs(BUTTON_LABELS) do
-        local enabled = buttonEnabled(label)
-        table_insert(game.buttons, {
-            label = label,
-            x = layout.x,
-            y = y,
-            w = layout.w,
-            h = layout.h,
-            enabled = enabled,
-        })
-        y = y + layout.h + layout.spacing
-    end
-end
+                    y = y + spacing.titleHeight + spacing.headerGap
+                    local headerY = y
+                    local paddingX = math.max(18, hud.w * 0.06)
+                    local availableWidth = hud.w - paddingX * 2
+                    local colWidths = {
+                        availableWidth * 0.38,
+                        availableWidth * 0.22,
+                        availableWidth * 0.20,
+                        availableWidth * 0.20,
+                    }
+                    local colX = {
+                        hud.x + paddingX,
+                        hud.x + paddingX + colWidths[1],
+                        hud.x + paddingX + colWidths[1] + colWidths[2],
+                        hud.x + paddingX + colWidths[1] + colWidths[2] + colWidths[3],
+                    }
+                    love.graphics.setFont(fonts.small)
+                    love.graphics.setColor(0.85, 0.82, 0.7)
+                    love.graphics.print("Player", colX[1], headerY)
+                    love.graphics.printf("Banked", colX[2], headerY, colWidths[2], "right")
+                    love.graphics.printf("Round", colX[3], headerY, colWidths[3], "right")
+                    love.graphics.printf("Selected", colX[4], headerY, colWidths[4], "right")
 
-local function drawButtons()
-    -- OTTIMIZZAZIONE: rebuild solo quando necessario
-    if game.buttonsNeedRefresh then
-        rebuildButtons()
-        game.buttonsNeedRefresh = false
-    end
-    
-    local layout = game.layout.buttons
-    if layout.panel then
-        love.graphics.setColor(0.12, 0.09, 0.06, 0.9)
-        love.graphics.rectangle("fill", layout.panel.x, layout.panel.y, layout.panel.w, layout.panel.h, 18, 18)
-        love.graphics.setColor(0.35, 0.27, 0.18)
-        love.graphics.setLineWidth(2)
-        love.graphics.rectangle("line", layout.panel.x + 4, layout.panel.y + 4, layout.panel.w - 8, layout.panel.h - 8, 14, 14)
-    end
-    for _, button in ipairs(game.buttons) do
-        if button.enabled then
-            love.graphics.setColor(0.34, 0.48, 0.72)
-        else
-            love.graphics.setColor(0.18, 0.24, 0.3)
+                    local headerBottom = headerY + spacing.headerHeight
+                    local rowY = headerBottom + spacing.rowGap
+                    love.graphics.setColor(0.7, 0.85, 1.0)
+                    love.graphics.print(game.players[1].name, colX[1], rowY)
+                    love.graphics.setColor(1, 1, 1)
+                    love.graphics.printf(tostring(game.players[1].banked), colX[2], rowY, colWidths[2], "right")
+                    love.graphics.setColor(0.72, 0.9, 0.9)
+                    love.graphics.printf(tostring(game.roundScore), colX[3], rowY, colWidths[3], "right")
+                    love.graphics.setColor(0.9, 0.75, 0.4)
+                    love.graphics.printf(tostring(game.selection.points), colX[4], rowY, colWidths[4], "right")
+
+                    rowY = rowY + spacing.rowHeight + spacing.rowGap
+                    love.graphics.setColor(1.0, 0.6, 0.55)
+                    love.graphics.print(game.players[2].name, colX[1], rowY)
+                    love.graphics.setColor(1, 1, 1)
+                    love.graphics.printf(tostring(game.players[2].banked), colX[2], rowY, colWidths[2], "right")
+
+                    local row2Bottom = rowY + spacing.rowHeight
+
+                    rowY = rowY + spacing.rowHeight + spacing.rowGap
+                    love.graphics.setColor(0.95, 0.88, 0.45)
+                    love.graphics.print("Goal", colX[1], rowY)
+                    love.graphics.setColor(1, 1, 1)
+                    love.graphics.printf(tostring(winningScore), colX[2], rowY, colWidths[2], "right")
+
+                    love.graphics.setColor(0.35, 0.27, 0.18, 0.7)
+                    love.graphics.setLineWidth(1)
+                    local line1Y = headerBottom + spacing.rowGap * 0.5
+                    local line2Y = row2Bottom + spacing.rowGap * 0.5
+                    love.graphics.line(hud.x + 12, line1Y, hud.x + hud.w - 12, line1Y)
+                    love.graphics.line(hud.x + 12, line2Y, hud.x + hud.w - 12, line2Y)
+                end
+            end
         end
-        love.graphics.rectangle("fill", button.x, button.y, button.w, button.h, 12, 12)
-        love.graphics.setColor(0.1, 0.12, 0.16)
-        love.graphics.setLineWidth(2)
-        love.graphics.rectangle("line", button.x, button.y, button.w, button.h, 12, 12)
-        love.graphics.setFont(fonts.small)
-        if button.enabled then
-            love.graphics.setColor(0.95, 0.98, 1.0)
-        else
-            love.graphics.setColor(0.65, 0.7, 0.78)
-        end
-        love.graphics.printf(button.label, button.x, button.y + button.h / 2 - fonts.small:getHeight() / 2, button.w, "center")
     end
 end
 
@@ -1093,50 +859,98 @@ end
 
 -- === LOVE2D CALLBACKS ===
 function love.load()
-    -- Inizializza il crash reporter per primo
-    CrashReporter.init()
-    
-    love.math.setRandomSeed(os.time())
-    local width, height = love.graphics.getDimensions()
-    refreshFonts(width, height)
-    setupLayout(width, height)
-    setupStripes(height)
-    decodeCursor()
-    loadSelectionImages()
-    
-    -- Inizializza le animazioni dei dadi
-    Dice.initAnimations()
-    
-    game.message = "Welcome back!"
+    local ok, err = pcall(function()
+        CrashReporter.init()
+        love.math.setRandomSeed(os.time())
+        local width, height = love.graphics.getDimensions()
+        refreshFonts(width, height)
+        local ok_img, img = pcall(love.graphics.newImage, "images/wooden_board.png")
+        if ok_img and img then
+            boardImage = img
+            print("Loaded wooden_board image: " .. img:getWidth() .. "x" .. img:getHeight())
+        else
+            print("wooden_board.png non trovato, useremo la board renderizzata")
+        end
+        game.layout = Layout.setupLayout(width, height, fonts, BUTTON_LABELS, boardImage)
+        setupStripes(height)
+        decodeCursor()
+        loadSelectionImages()
+        Dice.initAnimations()
+        game.message = "Welcome back!"
+    end)
+    if not ok then
+        print("[CRASH] love.load: " .. tostring(err))
+        local f = io.open("crash_report.txt", "a")
+        if f then f:write(os.date() .. " [love.load] " .. tostring(err) .. "\n"); f:close() end
+    end
 end
 
 function love.update(dt)
-    -- Aggiorna le animazioni dei dadi
-    Dice.updateAnimations(dt)
-    
-    updateGame(dt)
+    local ok, err = pcall(function()
+        Dice.updateAnimations(dt)
+        updateGame(dt)
+    end)
+    if not ok then
+        print("[CRASH] love.update: " .. tostring(err))
+        local f = io.open("crash_report.txt", "a")
+        if f then f:write(os.date() .. " [love.update] " .. tostring(err) .. "\n"); f:close() end
+    end
 end
 
 function love.draw()
-    drawBackground()
-
-    if game.state == "menu" then
-        drawMenu()
-        return
+    local ok, err = pcall(function()
+        drawBackground()
+        if game.state == "menu" then
+            drawMenu()
+            return
+        end
+        local layout = game.layout
+        if not layout or not layout.board or layout.board.w < 50 or layout.board.h < 50 or layout.board.x < 0 or layout.board.y < 0 then
+            love.graphics.setColor(0.2,0.2,0.2,1)
+            love.graphics.rectangle("fill", 0, 0, love.graphics.getWidth(), love.graphics.getHeight())
+            love.graphics.setColor(1,1,1,1)
+            love.graphics.print("Finestra troppo piccola!", 10, 10)
+            return
+        end
+        Render.safeDrawBoard(boardImage, layout)
+        -- Scoreboard overlay stile Gwent
+        Render.drawScoreboard(layout, fonts, game)
+        -- Log in angolo sinistro
+        Render.drawLog(layout, fonts, game)
+        -- Plancine traslucide centrati
+        if layout.trays and layout.trays.ai and layout.trays.player then
+            drawTray(layout.trays.ai)
+            drawTray(layout.trays.player)
+        end
+        -- Colonne dadi tenuti
+        if layout.kept and layout.kept.ai and layout.kept.player then
+            Dice.drawKeptColumn(layout.kept.ai, game.kept.ai, true)
+            Dice.drawKeptColumn(layout.kept.player, game.kept.player, false)
+        end
+        -- Dadi
+        drawDice()
+        -- Tasti 2x2 grid a destra della board
+        if layout.buttons then
+            for _, btn in ipairs(layout.buttons) do
+                btn.enabled = buttonEnabled(btn.label)
+                local color = btn.enabled and {0.32, 0.46, 0.7, 0.92} or {0.32, 0.46, 0.7, 0.35}
+                love.graphics.setColor(color)
+                love.graphics.rectangle("fill", btn.x, btn.y, btn.w, btn.h, 12, 12)
+                love.graphics.setColor(0.1, 0.12, 0.16)
+                love.graphics.setLineWidth(2)
+                love.graphics.rectangle("line", btn.x, btn.y, btn.w, btn.h, 12, 12)
+                love.graphics.setColor(0.95, 0.98, 1.0)
+                love.graphics.setFont(fonts.body)
+                love.graphics.printf(btn.label, btn.x, btn.y + btn.h / 2 - fonts.body:getHeight() / 2, btn.w, "center")
+            end
+        end
+        drawGuide()
+    end)
+    if not ok then
+        print("[CRASH] love.draw: " .. tostring(err))
+        local f = io.open("crash_report.txt", "a")
+        if f then f:write(os.date() .. " [love.draw] " .. tostring(err) .. "\n"); f:close() end
     end
-
-    drawBoard()
-    drawTray(game.layout.trays.ai)
-    drawTray(game.layout.trays.player)
-
-    Dice.drawKeptColumn(game.layout.kept.ai, game.kept.ai, true)
-    Dice.drawKeptColumn(game.layout.kept.player, game.kept.player, false)
-
-    drawDice()
-    drawHUD()
-    drawButtons()
-    drawMessage()
-    drawGuide()
 end
 
 local function inRect(x, y, rect)
@@ -1144,56 +958,77 @@ local function inRect(x, y, rect)
 end
 
 function love.mousepressed(x, y, button)
-    if button ~= 1 then
-        return
-    end
-
-    if game.state == "menu" then
-        if game.menuOptions then
-            for _, option in ipairs(game.menuOptions) do
-                if x >= option.x and x <= option.x + option.w and y >= option.y and y <= option.y + option.h then
-                    option.action()
+    local ok, err = pcall(function()
+        if button ~= 1 then return end
+        if game.state == "menu" then
+            if game.menuOptions then
+                for _, option in ipairs(game.menuOptions) do
+                    if x >= option.x and x <= option.x + option.w and y >= option.y and y <= option.y + option.h then
+                        local okBtn, errBtn = pcall(option.action)
+                        if not okBtn then
+                            print("[CRASH] menu button: " .. tostring(errBtn))
+                            local f = io.open("crash_report.txt", "a")
+                            if f then f:write(os.date() .. " [menu button] " .. tostring(errBtn) .. "\n"); f:close() end
+                        end
+                        return
+                    end
+                end
+            end
+            return
+        end
+        if game.showGuide then
+            game.showGuide = false
+            return
+        end
+        if game.layout and game.layout.buttons then
+            for _, btn in ipairs(game.layout.buttons) do
+                btn.enabled = buttonEnabled(btn.label)
+                if btn.enabled and inRect(x, y, btn) then
+                    if btn.label == "Roll Dice" then
+                        attemptRoll()
+                    elseif btn.label == "Bank Points" then
+                        attemptBank()
+                    elseif btn.label == "Guide" then
+                        game.showGuide = not game.showGuide
+                    elseif btn.label == "Main Menu" then
+                        game.state = "menu"
+                    end
                     return
                 end
             end
         end
-        return
-    end
-
-    if game.showGuide then
-        game.showGuide = false
-        return
-    end
-
-    for _, btn in ipairs(game.buttons) do
-        if btn.enabled and inRect(x, y, btn) then
-            executeButton(btn.label)
-            return
+        if game.rolling or getActivePlayer().isAI or #currentRoll() == 0 then return end
+        for _, die in ipairs(currentRoll()) do
+            local dx = x - die.x
+            local dy = y - die.y
+            if dx * dx + dy * dy <= Dice.RADIUS * Dice.RADIUS then
+                die.locked = not die.locked
+                ensureParticles(die)
+                refreshSelection()
+                return
+            end
         end
-    end
-
-    if game.rolling or getActivePlayer().isAI or #currentRoll() == 0 then
-        return
-    end
-
-    for _, die in ipairs(currentRoll()) do
-        local dx = x - die.x
-        local dy = y - die.y
-        if dx * dx + dy * dy <= Dice.RADIUS * Dice.RADIUS then
-            die.locked = not die.locked
-            ensureParticles(die)
-            refreshSelection()
-            return
-        end
+    end)
+    if not ok then
+        print("[CRASH] love.mousepressed: " .. tostring(err))
+        local f = io.open("crash_report.txt", "a")
+        if f then f:write(os.date() .. " [love.mousepressed] " .. tostring(err) .. "\n"); f:close() end
     end
 end
 
 function love.resize(width, height)
-    local previousLayout = snapshotLayout()
-    refreshFonts(width, height)
-    setupLayout(width, height)
-    setupStripes(height)
-    realignDiceAfterLayout(previousLayout)
+    local ok, err = pcall(function()
+        local previousLayout = snapshotLayout()
+        refreshFonts(width, height)
+        game.layout = Layout.setupLayout(width, height, fonts, BUTTON_LABELS, boardImage)
+        setupStripes(height)
+        realignDiceAfterLayout(previousLayout)
+    end)
+    if not ok then
+        print("[CRASH] love.resize: " .. tostring(err))
+        local f = io.open("crash_report.txt", "a")
+        if f then f:write(os.date() .. " [love.resize] " .. tostring(err) .. "\n"); f:close() end
+    end
 end
 
 function love.keypressed(key)

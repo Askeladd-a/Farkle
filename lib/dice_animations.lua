@@ -37,46 +37,107 @@ function DiceAnimations.init()
     end
     
     diceGrid = anim8.newGrid(frameWidth, frameHeight, diceImage:getWidth(), diceImage:getHeight())
+    -- Debug: mostra le dimensioni della griglia calcolata
+    print(string.format("[DiceAnimations] Grid created: frame %dx%d, image %dx%d -> grid %dx%d",
+        frameWidth, frameHeight, diceImage:getWidth(), diceImage:getHeight(), diceGrid.width, diceGrid.height))
     
-    -- Determina il layout dello spritesheet
+    -- Determina il layout dello spritesheet e preferisci un atlas XML se presente
     local imageWidth = diceImage:getWidth()
     local imageHeight = diceImage:getHeight()
-    local isHorizontalLayout = imageWidth > imageHeight * 2  -- Se è molto più largo che alto
-    
-    -- Crea le animazioni con protezione dagli errori
-    local success, result = pcall(function()
-        if isHorizontalLayout then
-            -- Layout orizzontale 1x6 (384x64)
-            return {
-                rolling = anim8.newAnimation(diceGrid('1-6', 1), 0.1),
-                face1 = anim8.newAnimation(diceGrid(1, 1), 1),
-                face2 = anim8.newAnimation(diceGrid(2, 1), 1),
-                face3 = anim8.newAnimation(diceGrid(3, 1), 1),
-                face4 = anim8.newAnimation(diceGrid(4, 1), 1),
-                face5 = anim8.newAnimation(diceGrid(5, 1), 1),
-                face6 = anim8.newAnimation(diceGrid(6, 1), 1),
-            }
-        else
-            -- Layout griglia 2x3 (192x128)
-            -- Mappa le posizioni della griglia ai valori dei dadi
-            -- Il tuo spritesheet: (1,1)=6, (2,1)=3, (1,2)=5, (2,2)=1, (1,3)=2, (2,3)=4
-            return {
-                -- Animazione di lancio usando tutte le posizioni disponibili
-                rolling = anim8.newAnimation(diceGrid('1-2', '1-3'), 0.1),
-                
-                -- Mappa i valori dei dadi alle posizioni nella griglia
-                face1 = anim8.newAnimation(diceGrid(2, 2), 1),  -- Posizione (2,2) = 1 pip
-                face2 = anim8.newAnimation(diceGrid(1, 3), 1),  -- Posizione (1,3) = 2 pip
-                face3 = anim8.newAnimation(diceGrid(2, 1), 1),  -- Posizione (2,1) = 3 pip
-                face4 = anim8.newAnimation(diceGrid(2, 3), 1),  -- Posizione (2,3) = 4 pip
-                face5 = anim8.newAnimation(diceGrid(1, 2), 1),  -- Posizione (1,2) = 5 pip
-                face6 = anim8.newAnimation(diceGrid(1, 1), 1),  -- Posizione (1,1) = 6 pip
-            }
+    print(string.format("[DiceAnimations] Image size %dx%d (frame %dx%d)", imageWidth, imageHeight, frameWidth, frameHeight))
+
+    -- Try to load an XML atlas if present (TextureAtlas / SubTexture format)
+    local atlasPath = "images/dice_spritesheet.xml"
+    local atlasOK, atlasContents = pcall(love.filesystem.read, atlasPath)
+    local success, result
+    if atlasOK and atlasContents then
+        -- Parse SubTexture entries
+        local quadsByName = {}
+        local quadsByIndex = {}
+        for name, x, y, w, h in atlasContents:gmatch('<SubTexture%s+name="([^"]+)"%s+x="(%d+)"%s+y="(%d+)"%s+width="(%d+)"%s+height="(%d+)"') do
+            local nx, ny, nw, nh = tonumber(x), tonumber(y), tonumber(w), tonumber(h)
+            local quad = love.graphics.newQuad(nx, ny, nw, nh, imageWidth, imageHeight)
+            quadsByName[name] = quad
+            -- try to extract numeric index from filename (e.g. dieWhite3 -> 3)
+            local idx = tonumber(name:match("(%d+)") or "")
+            if idx then
+                quadsByIndex[idx] = quad
+            end
         end
-    end)
+
+        success, result = pcall(function()
+            -- Ensure we have at least 6 frames mapped
+            for i = 1, 6 do
+                if not quadsByIndex[i] then
+                    error("Atlas missing frame for index " .. i)
+                end
+            end
+            local frames = { quadsByIndex[1], quadsByIndex[2], quadsByIndex[3], quadsByIndex[4], quadsByIndex[5], quadsByIndex[6] }
+            local rollingAnim = anim8.newAnimation(frames, 0.1)
+            return {
+                rolling = rollingAnim,
+                face1 = anim8.newAnimation({frames[1]}, 1),
+                face2 = anim8.newAnimation({frames[2]}, 1),
+                face3 = anim8.newAnimation({frames[3]}, 1),
+                face4 = anim8.newAnimation({frames[4]}, 1),
+                face5 = anim8.newAnimation({frames[5]}, 1),
+                face6 = anim8.newAnimation({frames[6]}, 1),
+            }
+        end)
+        if success then
+            print("[DiceAnimations] Loaded frames from atlas: " .. atlasPath)
+        else
+            print("[DiceAnimations] Failed to create animations from atlas: " .. tostring(result))
+        end
+    else
+        -- Fallback: generic grid pickup (first 6 frames)
+        local cols = diceGrid.width or math.floor(imageWidth / frameWidth)
+        local rows = diceGrid.height or math.floor(imageHeight / frameHeight)
+        if cols * rows < 6 then
+            success, result = false, "Spritesheet too small: need at least 6 frames"
+        else
+            success, result = pcall(function()
+                local frames = {}
+                for i = 1, 6 do
+                    local x = ((i - 1) % cols) + 1
+                    local y = math.floor((i - 1) / cols) + 1
+                    local quadTable = diceGrid(x, y)
+                    frames[#frames + 1] = quadTable[1]
+                end
+                local rollingAnim = anim8.newAnimation(frames, 0.1)
+                return {
+                    rolling = rollingAnim,
+                    face1 = anim8.newAnimation({frames[1]}, 1),
+                    face2 = anim8.newAnimation({frames[2]}, 1),
+                    face3 = anim8.newAnimation({frames[3]}, 1),
+                    face4 = anim8.newAnimation({frames[4]}, 1),
+                    face5 = anim8.newAnimation({frames[5]}, 1),
+                    face6 = anim8.newAnimation({frames[6]}, 1),
+                }
+            end)
+        end
+    end
     
     if success then
-        animations = result
+        animations = result or {}
+        -- Se per qualche motivo non esiste l'animazione di rolling, creala come fallback
+        if not animations.rolling then
+            local ok, anim = pcall(function()
+                -- Prova prioritariamente una riga orizzontale, poi la griglia 2x3
+                if diceGrid.width >= 6 then
+                    return anim8.newAnimation(diceGrid('1-6', 1), 0.1)
+                else
+                    return anim8.newAnimation(diceGrid('1-2', '1-3'), 0.1)
+                end
+            end)
+            if ok and anim then
+                animations.rolling = anim
+                print("[DiceAnimations] Rolling animation fallback creata")
+            else
+                print("[DiceAnimations] Impossibile creare rolling animation di fallback: " .. tostring(anim))
+            end
+        end
+
         print("Animazioni create con successo - Layout: " .. (isHorizontalLayout and "Orizzontale 1x6" or "Griglia 2x3"))
         local animNames = {}
         for name, _ in pairs(animations) do

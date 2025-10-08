@@ -1,0 +1,15 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+
+    {
+      "name": "Run LOVE (external)",
+      "type": "node",
+      "request": "launch",
+      "runtimeExecutable": "C:\\Program Files\\LOVE\\love.exe",
+      "args": ["${workspaceFolder}"],
+      "console": "integratedTerminal",
+      "cwd": "${workspaceFolder}"
+    }
+  ]
+}

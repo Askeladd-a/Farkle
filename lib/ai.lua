@@ -148,12 +148,13 @@ function AIController:update(dt, ctx)
         local turnTemp = ctx.turnTemp()
         local potential = turnTemp + selection.points
         local remaining = ctx.countRemainingDice()
+        local randomDelay = love.math.random(100, 300) / 1000
         if shouldBank(potential, remaining, turnTemp, ctx.playerBanked(), ctx.winningScore()) then
             ctx.attemptBank()
         else
             ctx.attemptRoll()
         end
-        self.delay = 1.5  -- Aumentato da 0.9 a 1.5 secondi
+        self.delay = 1.5 + randomDelay
         self:clearPending()
         return
     end
@@ -166,16 +167,18 @@ function AIController:update(dt, ctx)
     local best = findBestSubset(ctx.getDice())
     if not best then
         if ctx.turnTemp() > 0 then
+            local randomDelay = love.math.random(100, 300) / 1000
             ctx.attemptBank()
-            self.delay = 1.2  -- Aumentato da 1.0 a 1.2 secondi
+            self.delay = 1.2 + randomDelay
         end
         return
     end
 
+    local randomDelay = love.math.random(100, 300) / 1000
     ctx.lockDice(best.indices)
     ctx.refreshScores()
     self.pending = "evaluate"
-    self.delay = 0.8  -- Aumentato da 0.45 a 0.8 secondi
+    self.delay = 0.8 + randomDelay
 end
 
 return AIController

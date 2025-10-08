@@ -278,9 +278,11 @@ function Dice.drawKeptColumn(area, kept, alignTop)
     end
 
     -- Spaziatura più generosa per evitare sovrapposizioni
-    local spacing = Dice.SIZE + 16  -- Aumentato da 8 a 16
+    -- Adaptive spacing: try to fit all kept dice vertically inside the area
+    local maxSpacing = Dice.SIZE + 16
+    local spacing = maxSpacing
     if area.h > 0 then
-        spacing = math.min(spacing, area.h / #kept)
+        spacing = math.min(maxSpacing, math.floor(area.h / #kept))
     end
     local totalHeight = spacing * #kept
     local startY
@@ -289,7 +291,11 @@ function Dice.drawKeptColumn(area, kept, alignTop)
     else
         startY = area.y + area.h - totalHeight + spacing * 0.5
     end
+    -- Center X with a small inward padding so dice sit inside the recessed area visually
+    local paddingX = math.max(8, math.min(20, area.w * 0.08))
     local centerX = area.x + area.w * 0.5
+    if centerX < area.x + paddingX then centerX = area.x + paddingX end
+    if centerX > area.x + area.w - paddingX then centerX = area.x + area.w - paddingX end
 
     for index, value in ipairs(kept) do
         local y = startY + (index - 1) * spacing
@@ -298,7 +304,7 @@ function Dice.drawKeptColumn(area, kept, alignTop)
             x = centerX,
             y = y,
             angle = 0,
-            locked = false,
+            locked = true, -- visually indicate kept dice
         })
     end
 end
