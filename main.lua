@@ -2,6 +2,7 @@ local Dice = require("lib.dice")
 local scoring = require("lib.scoring")
 local AIController = require("lib.ai")
 local EmbeddedAssets = require("lib.embedded_assets")
+local CrashReporter = require("lib.crash_reporter")
 
 local table_insert = table.insert
 local table_remove = table.remove
@@ -1089,6 +1090,9 @@ end
 
 -- === LOVE2D CALLBACKS ===
 function love.load()
+    -- Inizializza il crash reporter per primo
+    CrashReporter.init()
+    
     love.math.setRandomSeed(os.time())
     local width, height = love.graphics.getDimensions()
     refreshFonts(width, height)
@@ -1187,4 +1191,18 @@ function love.resize(width, height)
     setupLayout(width, height)
     setupStripes(height)
     realignDiceAfterLayout(previousLayout)
+end
+
+function love.keypressed(key)
+    if key == "escape" then
+        love.event.quit()
+    elseif key == "f1" then
+        -- Test del crash reporter (solo per debug)
+        print("Test crash reporter...")
+        CrashReporter.testCrash()
+    elseif key == "f2" then
+        -- Pulisci i log files (solo per debug)
+        print("Pulizia log files...")
+        CrashReporter.cleanupLogs()
+    end
 end

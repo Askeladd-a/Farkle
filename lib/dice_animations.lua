@@ -18,11 +18,11 @@ function DiceAnimations.init()
     
     if success and image then
         diceImage = image
-        print("Caricato spritesheet dei dadi da file")
+        print("Caricato spritesheet dei dadi da file - Dimensioni: " .. image:getWidth() .. "x" .. image:getHeight())
     else
         -- Crea un'immagine di fallback se lo spritesheet non esiste
         diceImage = DiceAnimations.createFallbackImage()
-        print("Creato spritesheet di fallback per i dadi")
+        print("Creato spritesheet di fallback per i dadi - Dimensioni: " .. diceImage:getWidth() .. "x" .. diceImage:getHeight())
     end
     
     -- Crea la griglia per lo spritesheet
@@ -76,7 +76,12 @@ function DiceAnimations.init()
     
     if success then
         animations = result
-        print("Animazioni create con successo")
+        print("Animazioni create con successo - Layout: " .. (isHorizontalLayout and "Orizzontale 1x6" or "Griglia 2x3"))
+        local animNames = {}
+        for name, _ in pairs(animations) do
+            table.insert(animNames, name)
+        end
+        print("Animazioni disponibili: " .. table.concat(animNames, ", "))
     else
         print("Errore nella creazione delle animazioni: " .. tostring(result))
         animations = {}
@@ -211,6 +216,9 @@ function DiceAnimations.drawDie(die, x, y, scale, rotation)
     love.graphics.rotate(rotation)
     love.graphics.scale(scale, scale)
     
+    -- Assicurati che il colore sia opaco
+    love.graphics.setColor(1, 1, 1, 1)
+    
     -- Scegli l'animazione appropriata
     local animation
     if die.isRolling then
@@ -220,7 +228,24 @@ function DiceAnimations.drawDie(die, x, y, scale, rotation)
     end
     
     if animation and animation.draw then
-        pcall(function() animation:draw(diceImage, -32, -32) end)  -- Centra l'animazione
+        local success = pcall(function() 
+            animation:draw(diceImage, -32, -32)  -- Centra l'animazione
+        end)
+        if not success then
+            print("Errore nel disegno dell'animazione per dado valore " .. (die.value or "nil"))
+            -- Fallback: disegna un quadrato bianco
+            love.graphics.setColor(0.9, 0.9, 0.9, 1)
+            love.graphics.rectangle("fill", -32, -32, 64, 64, 8, 8)
+            love.graphics.setColor(0.2, 0.2, 0.2, 1)
+            love.graphics.rectangle("line", -32, -32, 64, 64, 8, 8)
+        end
+    else
+        print("Nessuna animazione disponibile per dado valore " .. (die.value or "nil") .. " - isRolling: " .. tostring(die.isRolling))
+        -- Fallback: disegna un quadrato bianco
+        love.graphics.setColor(0.9, 0.9, 0.9, 1)
+        love.graphics.rectangle("fill", -32, -32, 64, 64, 8, 8)
+        love.graphics.setColor(0.2, 0.2, 0.2, 1)
+        love.graphics.rectangle("line", -32, -32, 64, 64, 8, 8)
     end
     
     love.graphics.pop()
