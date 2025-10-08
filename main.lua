@@ -29,6 +29,62 @@ local turn = {
 }
 local selectedDie = 1 -- indice del dado selezionato per input tastiera
 
+-- Funzione di supporto: trova i dadi non bloccati
+local function getUnlockedDice()
+    local res = {}
+    for i, die in ipairs(dice) do
+        if not die.locked then table.insert(res, i) end
+    end
+    return res
+end
+
+-- Funzione: aggiorna il punteggio temporaneo del turno
+local function updateTurnScore()
+    local vals = {}
+    for _, die in ipairs(dice) do
+        if die.locked then table.insert(vals, die.value) end
+    end
+    turn.temp = require("lib.scoring").scoreSelection(vals).points
+end
+
+-- Funzione: controlla se la selezione corrente è scoring
+local function canScore()
+    local vals = {}
+    for _, die in ipairs(dice) do
+        if die.locked then table.insert(vals, die.value) end
+    end
+    return require("lib.scoring").scoreSelection(vals).valid
+end
+
+-- Funzione: rolla solo i dadi non bloccati
+local function rollUnlockedDice()
+    local unlocked = getUnlockedDice()
+    if #unlocked == 0 then return end
+    dicePositions = generateDicePositions(#dice)
+    for idx, die in ipairs(dice) do
+        if not die.locked then
+            startRoll(die, idx)
+        end
+    end
+    refreshScores()
+    updateTurnScore()
+end
+
+-- Funzione: banca i punti temporanei
+local function bankPoints()
+    turn.banked = turn.banked + turn.temp
+    turn.temp = 0
+    for _, die in ipairs(dice) do die.locked = false end
+    rollAllDice()
+end
+
+-- Funzione: resetta il turno dopo bust
+local function bustTurn()
+    turn.temp = 0
+    for _, die in ipairs(dice) do die.locked = false end
+    rollAllDice()
+end
+
 local tileWidth, tileHeight = 96, 48
 local diceSize = 64
 local diceSpriteSize = 64
@@ -425,8 +481,29 @@ local function rollAllDice()
 end
 
 function love.keypressed(key)
-    if key == "space" then
-        rollAllDice()
+    local unlocked = getUnlockedDice()
+    if key == "w" or key == "up" then
+        selectedDie = ((selectedDie - 2) % #dice) + 1
+    elseif key == "s" or key == "down" then
+        selectedDie = (selectedDie % #dice) + 1
+    elseif key == "a" or key == "left" then
+        selectedDie = ((selectedDie - 2) % #dice) + 1
+    elseif key == "d" or key == "right" then
+        selectedDie = (selectedDie % #dice) + 1
+    elseif key == "e" then
+        local die = dice[selectedDie]
+        if die and not die.isRolling then
+            die.locked = not die.locked
+            updateTurnScore()
+        end
+    elseif key == "f" then -- Score & Continue
+        if canScore() then
+            rollUnlockedDice()
+        end
+    elseif key == "q" then -- Score & Pass
+        if canScore() then
+            bankPoints()
+        end
     end
 end
 
