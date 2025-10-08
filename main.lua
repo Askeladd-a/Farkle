@@ -522,13 +522,37 @@ local function drawBoard()
     end
 end
 
-local function drawTray(tray)
-    -- Semi-transparent trays so the wooden board shows through
-    love.graphics.setColor(0.12, 0.08, 0.05, 0.75)
-    love.graphics.rectangle("fill", tray.x, tray.y, tray.w, tray.h, 18, 18)
-    love.graphics.setColor(0.12, 0.08, 0.05, 0.95)
-    love.graphics.setLineWidth(2)
-    love.graphics.rectangle("line", tray.x + 1, tray.y + 1, tray.w - 2, tray.h - 2, 18, 18)
+local function withScissor(rect, drawFn)
+    if not rect then
+        drawFn()
+        return
+    end
+
+    local prevX, prevY, prevW, prevH = love.graphics.getScissor()
+    love.graphics.setScissor(rect.x, rect.y, rect.w, rect.h)
+    drawFn()
+    if prevX then
+        love.graphics.setScissor(prevX, prevY, prevW, prevH)
+    else
+        love.graphics.setScissor()
+    end
+end
+
+local function drawTray(tray, clip)
+    if not tray then
+        return
+    end
+
+    local function drawOverlay()
+        -- Semi-transparent trays so the wooden board shows through
+        love.graphics.setColor(0.12, 0.08, 0.05, 0.75)
+        love.graphics.rectangle("fill", tray.x, tray.y, tray.w, tray.h, 18, 18)
+        love.graphics.setColor(0.12, 0.08, 0.05, 0.95)
+        love.graphics.setLineWidth(2)
+        love.graphics.rectangle("line", tray.x + 1, tray.y + 1, tray.w - 2, tray.h - 2, 18, 18)
+    end
+
+    withScissor(clip or tray, drawOverlay)
 end
 
 local function drawHUD()
@@ -996,8 +1020,8 @@ function love.draw()
         Render.drawLog(layout, fonts, game)
         -- Plancine traslucide centrati
         if layout.trays and layout.trays.ai and layout.trays.player then
-            drawTray(layout.trays.ai)
-            drawTray(layout.trays.player)
+            drawTray(layout.trays.ai, layout.trayClips and layout.trayClips.ai)
+            drawTray(layout.trays.player, layout.trayClips and layout.trayClips.player)
         end
         -- Colonne dadi tenuti
         if layout.kept and layout.kept.ai and layout.kept.player then

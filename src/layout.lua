@@ -54,6 +54,20 @@ function M.setupLayout(windowW, windowH, fonts, BUTTON_LABELS, boardImage)
     local trayH_ai = board.h * (innerFrame.topBottom - innerFrame.topTop)
     local trayY_player = board.y + board.h * innerFrame.bottomTop
     local trayH_player = board.h * (innerFrame.bottomBottom - innerFrame.bottomTop)
+
+    local trayClip_ai = {
+        x = trayX,
+        y = trayY_ai,
+        w = trayW,
+        h = trayH_ai,
+    }
+
+    local trayClip_player = {
+        x = trayX,
+        y = trayY_player,
+        w = trayW,
+        h = trayH_player,
+    }
     -- Colonne dei dadi tenuti
     local keptW_ai = trayW * 0.13
     local keptW_player = keptW_ai
@@ -108,6 +122,10 @@ function M.setupLayout(windowW, windowH, fonts, BUTTON_LABELS, boardImage)
         trays = {
             ai = {x = trayX, y = trayY_ai, w = trayW, h = trayH_ai},
             player = {x = trayX, y = trayY_player, w = trayW, h = trayH_player},
+        },
+        trayClips = {
+            ai = trayClip_ai,
+            player = trayClip_player,
         },
         kept = {
             ai = kept_ai,
