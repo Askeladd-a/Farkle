@@ -1,4 +1,8 @@
 local anim8 = require("lib.anim8")
+local Menu = require("lib.menu")
+local AIController = require("lib.ai")
+
+local table_unpack = table.unpack or unpack
 
 local diceAtlasConfig
 do
@@ -21,24 +25,58 @@ local diceFrameMeta = {}
 local diceFrameImages = {}
 local diceFrameCount = 0
 local scores = {roll = 0, selection = 0}
+
+local players = {
+    {id = "human", name = "You", banked = 0, isAI = false},
+    {id = "ai", name = "Neon Bot", banked = 0, isAI = true},
+}
+
+local winningScore = 10000
+local winnerIndex = nil
+
 local turn = {
-    banked = 0, -- points stored in the bank
+    player = 1,
     temp = 0,   -- points accumulated during the current turn
     bust = false, -- true if the last roll was a bust
     canContinue = false, -- true if there is a valid selection to keep rolling
     canPass = false,     -- true if banking is allowed
+    lastOutcome = nil,
+    pendingRoll = false,
+    pendingRollDelay = 0,
 }
+
+local aiController = AIController.new()
+
+local gameState = "menu"
+local globalTime = 0
 local selectedDie = 1 -- index of the die selected for keyboard input
 local selection = {points = 0, valid = false, dice = 0}
 
-local function setGameState(state)
-    gameState = state
-    if state == "menu" then
-        mainMenu.pulse = 0
-        if #mainMenu.items > 0 then
-            mainMenu.selectedIndex = 1
+local function getCurrentPlayer()
+    return players[turn.player]
+end
+
+local function getNextPlayerIndex(index)
+    return (index % #players) + 1
+end
+
+local function isAITurn()
+    local player = getCurrentPlayer()
+    return gameState == "game" and not winnerIndex and player and player.isAI
+end
+
+local function isHumanTurn()
+    local player = getCurrentPlayer()
+    return gameState == "game" and (not winnerIndex) and player and not player.isAI
+end
+
+local function diceAreIdle()
+    for _, die in ipairs(dice) do
+        if die.isRolling or die.animTime < die.animDuration then
+            return false
         end
     end
+    return true
 end
 
 local function drawShadowedText(font, text, x, y, color, shadowColor)
@@ -80,20 +118,21 @@ end
 local rollAllDice
 local startNewGame
 
-local gameState = "menu"
-local globalTime = 0
+local mainMenu = Menu.new({
+    {id = "start", label = "Start Game", blurb = "Roll the bones and chase a streak."},
+    {id = "options", label = "Options", blurb = "Tune the experience (coming soon)."},
+    {id = "guide", label = "How to Play", blurb = "Learn the flow of Farkle."},
+    {id = "exit", label = "Exit", blurb = "Leave the table."},
+})
 
-local mainMenu = {
-    items = {
-        {id = "start", label = "Start Game", blurb = "Roll the bones and chase a streak."},
-        {id = "options", label = "Options", blurb = "Tune the experience (coming soon)."},
-        {id = "guide", label = "How to Play", blurb = "Learn the flow of Farkle."},
-        {id = "exit", label = "Exit", blurb = "Leave the table."},
-    },
-    selectedIndex = 1,
-    pulse = 0,
-    itemBounds = {},
-}
+local function setGameState(state)
+    gameState = state
+    if state == "menu" then
+        mainMenu:reset()
+        turn.pendingRoll = false
+        aiController:reset()
+    end
+end
 
 local function getAvailableFaceCount()
     if diceFrameSets.normal and #diceFrameSets.normal > 0 then
@@ -102,8 +141,80 @@ local function getAvailableFaceCount()
     return 6
 end
 
+local function declareWinner(bankedAmount)
+    local player = getCurrentPlayer()
+    if not player then return end
+
+    winnerIndex = turn.player
+    turn.pendingRoll = false
+    turn.pendingRollDelay = 0
+    aiController:reset()
+    turn.canContinue = false
+    turn.canPass = false
+    turn.temp = 0
+    selection.points = 0
+    selection.valid = false
+    selection.dice = 0
+
+    for _, die in ipairs(dice) do
+        die.locked = false
+        die.spent = true
+    end
+
+    ensureSelectedDieValid()
+
+    local message = string.format("%s wins with %d!", player.name, player.banked)
+    if bankedAmount and bankedAmount > 0 then
+        message = string.format("%s banked %d and reached %d!", player.name, bankedAmount, player.banked)
+    end
+    turn.lastOutcome = message
+
+    refreshScores()
+end
+
+local function endCurrentTurn(opts)
+    opts = opts or {}
+    local player = getCurrentPlayer()
+    if not player then return end
+
+    if opts.message then
+        turn.lastOutcome = opts.message
+    elseif opts.bust then
+        turn.lastOutcome = string.format("%s busted!", player.name)
+    elseif opts.banked and opts.banked > 0 then
+        turn.lastOutcome = string.format("%s banked %d", player.name, opts.banked)
+    else
+        turn.lastOutcome = string.format("%s ended the turn", player.name)
+    end
+
+    turn.temp = 0
+    turn.bust = false
+    turn.canContinue = false
+    turn.canPass = false
+    selection.points = 0
+    selection.valid = false
+    selection.dice = 0
+
+    for _, die in ipairs(dice) do
+        die.locked = false
+        die.spent = true
+    end
+
+    ensureSelectedDieValid()
+
+    local previous = turn.player
+    turn.player = getNextPlayerIndex(previous)
+    turn.pendingRoll = true
+    turn.pendingRollDelay = opts.delay or (opts.bust and 1.1 or 0.9)
+    aiController:clearPending()
+    aiController:delayFor(turn.pendingRollDelay)
+
+    refreshScores()
+end
+
 -- Rolls only dice that are not locked
 local function rollUnlockedDice()
+    if winnerIndex then return end
     local toRoll = {}
     for _, die in ipairs(dice) do
         if not die.spent and not die.locked then
@@ -121,28 +232,24 @@ end
 
 -- Banks the temporary points
 local function bankPoints()
-    turn.banked = turn.banked + turn.temp
-    turn.temp = 0
-    turn.canPass = false
-    turn.canContinue = false
-    for _, die in ipairs(dice) do
-        die.locked = false
-        die.spent = false
+    local player = getCurrentPlayer()
+    if not player then return end
+
+    local banked = turn.temp
+    player.banked = player.banked + banked
+
+    if player.banked >= winningScore then
+        declareWinner(banked)
+        return
     end
-    rollAllDice()
+
+    endCurrentTurn({banked = banked})
 end
 
 -- Resets the turn after a bust
 local function bustTurn()
-    turn.temp = 0
     turn.bust = true
-    turn.canContinue = false
-    turn.canPass = false
-    for _, die in ipairs(dice) do
-        die.locked = false
-        die.spent = false
-    end
-    ensureSelectedDieValid()
+    endCurrentTurn({bust = true})
 end
 
 local tileWidth, tileHeight = 96, 48
@@ -190,7 +297,7 @@ local dicePositions = nil
 
 local function randomGridPosition(idx)
     if dicePositions and dicePositions[idx] then
-        return unpack(dicePositions[idx])
+        return table_unpack(dicePositions[idx])
     else
         local padding = 0.6
         local ix = love.math.random() * (gridWidth - padding * 2) + padding
@@ -268,9 +375,49 @@ local function detectBust()
         turn.bust = false
     else
         bustTurn()
-        refreshScores()
     end
 end
+
+local function countRemainingAfterSelection()
+    local remaining = 0
+    for _, die in ipairs(dice) do
+        if not die.spent and not die.locked then
+            remaining = remaining + 1
+        end
+    end
+    return remaining
+end
+
+local function buildAIContext()
+    return {
+        isActive = function() return isAITurn() end,
+        hasWinner = function() return winnerIndex ~= nil end,
+        isRollPending = function() return turn.pendingRoll end,
+        diceAreIdle = diceAreIdle,
+        getSelection = function() return selection end,
+        turnTemp = function() return turn.temp end,
+        playerBanked = function()
+            local player = getCurrentPlayer()
+            return player and player.banked or 0
+        end,
+        winningScore = function() return winningScore end,
+        countRemainingDice = countRemainingAfterSelection,
+        attemptBank = attemptBank,
+        attemptRoll = attemptRoll,
+        getDice = function() return dice end,
+        lockDice = function(indices)
+            for _, index in ipairs(indices) do
+                local die = dice[index]
+                if die and not die.spent then
+                    die.locked = true
+                end
+            end
+        end,
+        refreshScores = refreshScores,
+    }
+end
+
+
 
 local function commitSelection()
     updateSelectionScore()
@@ -300,6 +447,9 @@ local function commitSelection()
 end
 
 local function attemptRoll()
+    if winnerIndex or turn.pendingRoll then
+        return false
+    end
     if selection.dice > 0 then
         if not selection.valid then
             return false
@@ -325,6 +475,9 @@ local function attemptRoll()
 end
 
 local function attemptBank()
+    if winnerIndex or turn.pendingRoll then
+        return false
+    end
     if selection.dice > 0 then
         if not selection.valid then
             return false
@@ -340,6 +493,7 @@ local function attemptBank()
     refreshScores()
     return true
 end
+
 
 local function startRoll(die, idx)
     if die.locked then return end
@@ -403,11 +557,21 @@ function startNewGame()
         table.insert(dice, createDie())
     end
 
-    turn.banked = 0
+    for _, player in ipairs(players) do
+        player.banked = 0
+    end
+
+    winnerIndex = nil
+    turn.player = 1
     turn.temp = 0
     turn.bust = false
     turn.canContinue = false
     turn.canPass = false
+    turn.lastOutcome = nil
+    turn.pendingRoll = false
+    turn.pendingRollDelay = 0
+
+    aiController:reset()
 
     selection.points = 0
     selection.valid = false
@@ -483,7 +647,20 @@ local function drawDie(die)
 end
 
 local function drawHelp()
-    local text = "Space/Enter/F or Right Click: score & roll    Q: bank winnings    Esc: main menu"
+    local text
+    if winnerIndex then
+        text = "Press Enter/Space to play again or Esc for menu"
+    elseif isAITurn() then
+        if turn.pendingRoll then
+            text = "Neon Bot prepares the next roll..."
+        else
+            text = "Neon Bot is weighing the odds..."
+        end
+    elseif isHumanTurn() then
+        text = "Space/Enter/F or Right Click: score & roll    Q: bank winnings    Esc: main menu"
+    else
+        text = "Preparing the next shooter..."
+    end
     love.graphics.setFont(fonts.help)
     local width = fonts.help:getWidth(text)
     local height = fonts.help:getHeight()
@@ -494,10 +671,6 @@ local function drawHelp()
     love.graphics.setColor(0.98, 0.8, 0.3, 0.9)
     love.graphics.rectangle("line", x - 18, y - 10, width + 36, height + 20, 16, 16)
     drawShadowedText(fonts.help, text, x, y, {0.92, 0.94, 0.98, 1})
-end
-
-local function updateMenu(dt)
-    mainMenu.pulse = (mainMenu.pulse or 0) + dt * 2
 end
 
 local function drawAmbientBackground()
@@ -514,118 +687,8 @@ local function drawAmbientBackground()
         love.graphics.rectangle("fill", -w * 1.5, offset, w * 3, 36)
     end
     love.graphics.pop()
-end
-
-local function drawMenuCard(x, y, w, h, isSelected, accentPulse)
-    love.graphics.setColor(0.06, 0.09, 0.14, 0.86)
-    love.graphics.rectangle("fill", x, y, w, h, 18, 18)
-    love.graphics.setColor(0.3, 0.4, 0.68, 0.55)
-    love.graphics.rectangle("line", x, y, w, h, 18, 18)
-    if isSelected then
-        local glow = 0.6 + 0.3 * math.sin(accentPulse)
-        love.graphics.setColor(0.98, 0.72 + 0.08 * glow, 0.28 + 0.1 * glow, 1)
-        love.graphics.setLineWidth(4)
-        love.graphics.rectangle("line", x - 6, y - 6, w + 12, h + 12, 22, 22)
-        love.graphics.setLineWidth(1)
-    end
-end
-
-local function drawMainMenu()
-    local w, h = love.graphics.getWidth(), love.graphics.getHeight()
-    love.graphics.setColor(0.02, 0.03, 0.05, 0.78)
-    love.graphics.rectangle("fill", 0, 0, w, h)
-
-    local title = "Neon Farkle"
-    local titleWidth = fonts.title:getWidth(title)
-    local titleX = (w - titleWidth) * 0.5
-    local titleY = h * 0.18
-    drawShadowedText(fonts.title, title, titleX, titleY, {0.98, 0.78, 0.32, 1}, {0.02, 0.02, 0.02, 0.8})
-
-    local subtitle = "Roll with style. Bank with nerve."
-    local subtitleX = (w - fonts.help:getWidth(subtitle)) * 0.5
-    drawShadowedText(fonts.help, subtitle, subtitleX, titleY + fonts.title:getHeight() + 12, {0.82, 0.86, 0.96, 1})
-
-    local itemHeight = fonts.menu:getHeight() + 22
-    local spacing = 16
-    local totalHeight = #mainMenu.items * itemHeight + (#mainMenu.items - 1) * spacing
-    local baseY = h * 0.45 - totalHeight * 0.5
-    local cardWidth = math.max(360, w * 0.32)
-    local cardX = (w - cardWidth) * 0.5
-
-    mainMenu.itemBounds = {}
-    for index, item in ipairs(mainMenu.items) do
-        local itemY = baseY + (index - 1) * (itemHeight + spacing)
-        local isSelected = index == mainMenu.selectedIndex
-        drawMenuCard(cardX, itemY, cardWidth, itemHeight, isSelected, mainMenu.pulse * 2 + index)
-        mainMenu.itemBounds[index] = {x = cardX, y = itemY, w = cardWidth, h = itemHeight}
-
-        local textY = itemY + (itemHeight - fonts.menu:getHeight()) * 0.5 - 2
-        local textColor = isSelected and {0.98, 0.93, 0.85, 1} or {0.78, 0.82, 0.9, 1}
-        drawShadowedText(fonts.menu, item.label, cardX + 28, textY, textColor)
-    end
-
-    local selectedItem = mainMenu.items[mainMenu.selectedIndex]
-    if selectedItem then
-        local blurb = selectedItem.blurb
-        local blurbWidth = fonts.body:getWidth(blurb)
-        local blurbX = (w - blurbWidth) * 0.5
-        drawShadowedText(fonts.body, blurb, blurbX, baseY + totalHeight + 42, {0.86, 0.88, 0.95, 1})
-    end
-
-    local hint = "Enter / Click to confirm    Esc to quit"
-    drawShadowedText(fonts.help, hint, (w - fonts.help:getWidth(hint)) * 0.5, h - 86, {0.96, 0.78, 0.36, 1})
-end
-
-local function drawOptionsScreen()
-    local w, h = love.graphics.getWidth(), love.graphics.getHeight()
-    love.graphics.setColor(0.02, 0.03, 0.05, 0.82)
-    love.graphics.rectangle("fill", 0, 0, w, h)
-
-    local title = "Options"
-    drawShadowedText(fonts.title, title, (w - fonts.title:getWidth(title)) * 0.5, h * 0.18, {0.98, 0.76, 0.3, 1})
-
-    local lines = {
-        "Audio sliders, visual filters, and accessibility toggles",
-        "will live here soon. For now, enjoy the neon bones!",
-    }
-    for i, line in ipairs(lines) do
-        local textWidth = fonts.body:getWidth(line)
-        local x = (w - textWidth) * 0.5
-        local y = h * 0.4 + (i - 1) * (fonts.body:getHeight() + 12)
-        drawShadowedText(fonts.body, line, x, y, {0.86, 0.88, 0.95, 1})
-    end
-
-    local hint = "Press ESC or Right Click to return"
-    drawShadowedText(fonts.help, hint, (w - fonts.help:getWidth(hint)) * 0.5, h - 86, {0.96, 0.78, 0.36, 1})
-end
-
-local function drawGuideScreen()
-    local w, h = love.graphics.getWidth(), love.graphics.getHeight()
-    love.graphics.setColor(0.02, 0.03, 0.05, 0.82)
-    love.graphics.rectangle("fill", 0, 0, w, h)
-
-    local title = "How to Play"
-    drawShadowedText(fonts.title, title, (w - fonts.title:getWidth(title)) * 0.5, h * 0.18, {0.98, 0.76, 0.3, 1})
-
-    local lines = {
-        "Roll six dice. Lock scoring dice to build your combo streak.",
-        "Bank points with Q to keep them safe, but busting erases turn points.",
-        "Hot dice! Score all dice in a roll and you'll throw all six again.",
-        "Chase high scores like a Balatro run—risky plays pay the neon bills.",
-    }
-    for i, line in ipairs(lines) do
-        local textWidth = fonts.body:getWidth(line)
-        local x = (w - textWidth) * 0.5
-        local y = h * 0.38 + (i - 1) * (fonts.body:getHeight() + 10)
-        drawShadowedText(fonts.body, line, x, y, {0.86, 0.88, 0.95, 1})
-    end
-
-    local hint = "Press ESC or Right Click to return"
-    drawShadowedText(fonts.help, hint, (w - fonts.help:getWidth(hint)) * 0.5, h - 86, {0.96, 0.78, 0.36, 1})
-end
-
 local function activateMenuItem(index)
-    local item = mainMenu.items[index]
+    local item = mainMenu:getItem(index)
     if not item then return end
 
     if item.id == "start" then
@@ -813,25 +876,49 @@ local function drawScore()
     love.graphics.setFont(fonts.score)
     local panelPadding = 16
     local lineSpacing = fonts.score:getHeight() + 6
-    local selectionText
+
+    local current = getCurrentPlayer()
+    local lines = {}
+
+    table.insert(lines, string.format("Turn: %s%s", current.name, current.isAI and " (AI)" or ""))
+    table.insert(lines, string.format("Roll potential: %d", scores.roll))
     if selection.dice > 0 then
         if selection.valid then
-            selectionText = string.format("Selection: %d", selection.points)
+            table.insert(lines, string.format("Selection: %d (%d dice)", selection.points, selection.dice))
         else
-            selectionText = "Selection: 0 (invalid)"
+            table.insert(lines, string.format("Selection: invalid (%d dice)", selection.dice))
         end
     else
-        selectionText = "Selection: 0"
+        table.insert(lines, "Selection: none")
     end
-    local lines = {
-        string.format("Potential points: %d", scores.roll),
-        selectionText,
-        string.format("Turn points: %d", turn.temp),
-        string.format("Banked total: %d", turn.banked),
-    }
-    if turn.bust then
-        table.insert(lines, "BUST! No score")
+
+    table.insert(lines, string.format("Turn points: %d", turn.temp))
+    table.insert(lines, string.format("Potential bank: %d", turn.temp + selection.points))
+    table.insert(lines, "")
+
+    for index, player in ipairs(players) do
+        local marker
+        if winnerIndex and index == winnerIndex then
+            marker = "★"
+        elseif not winnerIndex and index == turn.player then
+            marker = "➤"
+        else
+            marker = " "
+        end
+        table.insert(lines, string.format("%s %s: %d", marker, player.name, player.banked))
     end
+
+    if turn.lastOutcome then
+        table.insert(lines, "")
+        table.insert(lines, "Last: " .. turn.lastOutcome)
+    end
+
+    if winnerIndex then
+        table.insert(lines, "")
+        table.insert(lines, string.format("Goal: %d points", winningScore))
+        table.insert(lines, "Press Enter/Space to play again or Esc for menu")
+    end
+
     local textWidth = 0
     for _, line in ipairs(lines) do
         textWidth = math.max(textWidth, fonts.score:getWidth(line))
@@ -922,7 +1009,18 @@ end
 function love.update(dt)
     globalTime = globalTime + dt
     if gameState ~= "game" then
-        updateMenu(dt)
+        mainMenu:update(dt)
+    else
+        if turn.pendingRoll and not winnerIndex then
+            turn.pendingRollDelay = math.max(0, turn.pendingRollDelay - dt)
+            if turn.pendingRollDelay <= 0 and diceAreIdle() then
+                rollAllDice()
+                if isAITurn() then
+                    aiController:delayFor(0.6)
+                end
+            end
+        end
+        aiController:update(dt, buildAIContext())
     end
     for _, die in ipairs(dice) do
         updateDie(die, dt)
@@ -947,15 +1045,19 @@ function love.draw()
         drawHelp()
         drawScore()
     elseif gameState == "menu" then
-        drawMainMenu()
+        mainMenu:draw(fonts, drawShadowedText)
     elseif gameState == "options" then
-        drawOptionsScreen()
+        mainMenu:drawOptions(fonts, drawShadowedText)
     elseif gameState == "guide" then
-        drawGuideScreen()
+        mainMenu:drawGuide(fonts, drawShadowedText)
     end
 end
 
 function rollAllDice()
+    if winnerIndex then return end
+    turn.pendingRoll = false
+    turn.pendingRollDelay = 0
+    aiController:clearPending()
     dicePositions = generateDicePositions(#dice)
     turn.bust = false
     for _, die in ipairs(dice) do
@@ -972,15 +1074,15 @@ end
 
 function love.keypressed(key)
     if gameState == "menu" then
-        local total = #mainMenu.items
+        local total = mainMenu:getItemCount()
         if total == 0 then return end
 
         if key == "w" or key == "up" then
-            mainMenu.selectedIndex = ((mainMenu.selectedIndex - 2) % total) + 1
+            mainMenu:moveSelection(-1)
         elseif key == "s" or key == "down" then
-            mainMenu.selectedIndex = (mainMenu.selectedIndex % total) + 1
+            mainMenu:moveSelection(1)
         elseif key == "return" or key == "space" or key == "f" then
-            activateMenuItem(mainMenu.selectedIndex)
+            activateMenuItem(mainMenu:getSelectedIndex())
         elseif key == "escape" then
             love.event.quit()
         end
@@ -992,6 +1094,21 @@ function love.keypressed(key)
         return
     elseif key == "escape" then
         setGameState("menu")
+        return
+    end
+
+    if winnerIndex then
+        if key == "return" or key == "space" then
+            startNewGame()
+            return
+        elseif key == "escape" then
+            return
+        else
+            return
+        end
+    end
+
+    if not isHumanTurn() then
         return
     end
 
@@ -1017,6 +1134,9 @@ function love.keypressed(key)
 end
 
 local function toggleDieLock(x, y)
+    if turn.pendingRoll or winnerIndex then
+        return false
+    end
     local clicked = false
     for index = #dice, 1, -1 do
         local die = dice[index]
@@ -1043,19 +1163,14 @@ local function toggleDieLock(x, y)
     return clicked
 end
 
-local function pointInBounds(px, py, bounds)
-    return px >= bounds.x and px <= bounds.x + bounds.w and py >= bounds.y and py <= bounds.y + bounds.h
-end
-
 function love.mousepressed(x, y, button)
     if gameState == "menu" then
         if button == 1 then
-            for index, bounds in ipairs(mainMenu.itemBounds or {}) do
-                if pointInBounds(x, y, bounds) then
-                    mainMenu.selectedIndex = index
-                    activateMenuItem(index)
-                    return
-                end
+            local index = mainMenu:hitTest(x, y)
+            if index then
+                mainMenu:setSelection(index)
+                activateMenuItem(index)
+                return
             end
         elseif button == 2 then
             love.event.quit()
@@ -1068,6 +1183,10 @@ function love.mousepressed(x, y, button)
         return
     end
 
+    if winnerIndex or not isHumanTurn() then
+        return
+    end
+
     if button == 1 then
         toggleDieLock(x, y)
     elseif button == 2 then
@@ -1077,10 +1196,5 @@ end
 
 function love.mousemoved(x, y)
     if gameState ~= "menu" then return end
-    for index, bounds in ipairs(mainMenu.itemBounds or {}) do
-        if pointInBounds(x, y, bounds) then
-            mainMenu.selectedIndex = index
-            return
-        end
-    end
+    mainMenu:onMouseMoved(x, y)
 end
