@@ -19,70 +19,84 @@ local diceSheet
 local diceFrameSets = {}
 local diceFrameMeta = {}
 local diceFrameCount = 0
-local scores = {roll = 0, locked = 0, banked = 0}
+local scores = {roll = 0, selection = 0}
 local turn = {
     banked = 0, -- punti messi in cassaforte
-    temp = 0,   -- punti temporanei del turno
-    bust = false, -- true se il turno è bust
-    canContinue = false, -- true se si può continuare a rollare
+    temp = 0,   -- punti accumulati nel turno attuale
+    bust = false, -- true se l'ultimo tiro è stato un bust
+    canContinue = false, -- true se c'è una selezione valida per continuare
     canPass = false,     -- true se si può bancare
 }
 local selectedDie = 1 -- indice del dado selezionato per input tastiera
-
--- Funzione di supporto: trova i dadi non bloccati
-local function getUnlockedDice()
-    local res = {}
-    for i, die in ipairs(dice) do
-        if not die.locked then table.insert(res, i) end
+local selection = {points = 0, valid = false, dice = 0}
+local function ensureSelectedDieValid()
+    if #dice == 0 then return end
+    if dice[selectedDie] and not dice[selectedDie].spent then
+        return
     end
-    return res
+    for index, die in ipairs(dice) do
+        if not die.spent then
+            selectedDie = index
+            return
+        end
+    end
+    selectedDie = 1
 end
 
--- Funzione: aggiorna il punteggio temporaneo del turno
-local function updateTurnScore()
-    local vals = {}
-    for _, die in ipairs(dice) do
-        if die.locked then table.insert(vals, die.value) end
+local function moveSelection(delta)
+    if #dice == 0 then return end
+    local count = #dice
+    local idx = selectedDie
+    for _ = 1, count do
+        idx = ((idx - 1 + delta) % count) + 1
+        if not dice[idx].spent then
+            selectedDie = idx
+            return
+        end
     end
-    turn.temp = require("lib.scoring").scoreSelection(vals).points
-end
-
--- Funzione: controlla se la selezione corrente è scoring
-local function canScore()
-    local vals = {}
-    for _, die in ipairs(dice) do
-        if die.locked then table.insert(vals, die.value) end
-    end
-    return require("lib.scoring").scoreSelection(vals).valid
 end
 
 -- Funzione: rolla solo i dadi non bloccati
 local function rollUnlockedDice()
-    local unlocked = getUnlockedDice()
-    if #unlocked == 0 then return end
-    dicePositions = generateDicePositions(#dice)
-    for idx, die in ipairs(dice) do
-        if not die.locked then
-            startRoll(die, idx)
+    local toRoll = {}
+    for _, die in ipairs(dice) do
+        if not die.spent and not die.locked then
+            table.insert(toRoll, die)
         end
     end
+    if #toRoll == 0 then return end
+    dicePositions = generateDicePositions(#toRoll)
+    for idx, die in ipairs(toRoll) do
+        startRoll(die, idx)
+    end
     refreshScores()
-    updateTurnScore()
+    detectBust()
 end
 
 -- Funzione: banca i punti temporanei
 local function bankPoints()
     turn.banked = turn.banked + turn.temp
     turn.temp = 0
-    for _, die in ipairs(dice) do die.locked = false end
+    turn.canPass = false
+    turn.canContinue = false
+    for _, die in ipairs(dice) do
+        die.locked = false
+        die.spent = false
+    end
     rollAllDice()
 end
 
 -- Funzione: resetta il turno dopo bust
 local function bustTurn()
     turn.temp = 0
-    for _, die in ipairs(dice) do die.locked = false end
-    rollAllDice()
+    turn.bust = true
+    turn.canContinue = false
+    turn.canPass = false
+    for _, die in ipairs(dice) do
+        die.locked = false
+        die.spent = false
+    end
+    ensureSelectedDieValid()
 end
 
 local tileWidth, tileHeight = 96, 48
@@ -109,34 +123,7 @@ local function generateDicePositions(num)
     -- Tray più grande: due righe in basso
     local trayY1 = gridHeight - 0.6
     local trayY2 = gridHeight - 1.3
-    local trayX = {1, 2, 3, 4, 5, 6}
-    for i = 1, num do
-        local gx = trayX[((i-1)%6)+1] or (i * (gridWidth-1)/(num-1))
-        local row = math.floor((i-1)/6)
-        local iy = (row == 0 and trayY1 or trayY2) + love.math.random() * 0.18
-        local ix = gx + love.math.random() * 0.22 - 0.11
-        local iz = love.math.random() * 0.2
-        table.insert(positions, {ix, iy, iz})
-    end
-    -- Mischia le posizioni
-    for i = #positions, 2, -1 do
-        local j = love.math.random(1, i)
-        positions[i], positions[j] = positions[j], positions[i]
-    end
-    return positions
-end
-
-local dicePositions = nil
-
-local function randomGridPosition(idx)
-    if dicePositions and dicePositions[idx] then
-        return unpack(dicePositions[idx])
-    else
-        local padding = 0.6
-        local ix = love.math.random() * (gridWidth - padding * 2) + padding
-        local iy = love.math.random() * (gridHeight - padding * 2) + padding
-        local iz = love.math.random() * 0.4
-        return ix, iy, iz
+@@ -140,103 +154,206 @@ local function randomGridPosition(idx)
     end
 end
 
@@ -162,10 +149,23 @@ local function computeScoreFromCounts(counts)
 end
 
 local scoring = require("lib.scoring")
+local function updateSelectionScore()
+    local vals = {}
+    for _, die in ipairs(dice) do
+        if die.locked and not die.spent then
+            table.insert(vals, die.value)
+        end
+    end
+    local result = scoring.scoreSelection(vals)
+    selection.points = result.points
+    selection.valid = result.valid
+    selection.dice = #vals
+end
+
 local function calculateScoreForDice(predicate)
     local vals = {}
     for _, die in ipairs(dice) do
-        if not predicate or predicate(die) then
+        if (not die.spent) and (not predicate or predicate(die)) then
             table.insert(vals, die.value)
         end
     end
@@ -173,10 +173,99 @@ local function calculateScoreForDice(predicate)
 end
 
 local function refreshScores()
+    updateSelectionScore()
     scores.roll = calculateScoreForDice()
-    scores.locked = calculateScoreForDice(function(die)
-        return die.locked
-    end)
+    scores.selection = selection.points
+    turn.canContinue = selection.valid and selection.dice > 0
+    turn.canPass = turn.temp > 0 or turn.canContinue
+end
+
+local function detectBust()
+    local activeValues = {}
+    for _, die in ipairs(dice) do
+        if not die.spent then
+            table.insert(activeValues, die.value)
+        end
+    end
+    if #activeValues == 0 then
+        turn.bust = false
+        return
+    end
+    if scoring.hasAnyScoring(activeValues) then
+        turn.bust = false
+    else
+        bustTurn()
+        refreshScores()
+    end
+end
+
+local function commitSelection()
+    updateSelectionScore()
+    if selection.dice == 0 or not selection.valid then
+        return false, false
+    end
+    turn.temp = turn.temp + selection.points
+    for _, die in ipairs(dice) do
+        if die.locked then
+            die.locked = false
+            die.spent = true
+        end
+    end
+    local allSpent = true
+    for _, die in ipairs(dice) do
+        if not die.spent then
+            allSpent = false
+            break
+        end
+    end
+    selection.points = 0
+    selection.valid = false
+    selection.dice = 0
+    ensureSelectedDieValid()
+    refreshScores()
+    return true, allSpent
+end
+
+local function attemptRoll()
+    if selection.dice > 0 then
+        if not selection.valid then
+            return false
+        end
+        local success, allSpent = commitSelection()
+        if not success then return false end
+        if allSpent then
+            for _, die in ipairs(dice) do
+                die.spent = false
+            end
+            rollAllDice()
+        else
+            rollUnlockedDice()
+        end
+        return true
+    else
+        if turn.temp > 0 then
+            return false
+        end
+        rollAllDice()
+        return true
+    end
+end
+
+local function attemptBank()
+    if selection.dice > 0 then
+        if not selection.valid then
+            return false
+        end
+        local success = commitSelection()
+        if not success then
+            return false
+        end
+    elseif turn.temp == 0 then
+        return false
+    end
+    bankPoints()
+    refreshScores()
+    return true
 end
 
 local function startRoll(die, idx)
@@ -214,6 +303,7 @@ local function createDie()
         jitter = love.math.random() * 2 * math.pi,
         isRolling = false,
         locked = false,
+        spent = false,
         screenX = 0,
         screenY = 0,
         animations = {}
@@ -240,8 +330,7 @@ local function updateLayout()
     boardY = (sh - boardImage:getHeight() * boardScale) * 0.5
 end
 
-local function drawDie(die)
-    local isoX, isoY = isoToScreen(die.x, die.y, die.z)
+@@ -245,72 +362,73 @@ local function drawDie(die)
     local x = boardX + boardImage:getWidth() * boardScale * boardAnchorX + isoX * boardScale
     local y = boardY + boardImage:getHeight() * boardScale * boardAnchorY + isoY * boardScale
 
@@ -270,7 +359,8 @@ local function drawDie(die)
     love.graphics.setColor(0, 0, 0, 0.25)
     love.graphics.ellipse("fill", 0, half * 0.95, half * 0.95, half * 0.6)
 
-    love.graphics.setColor(1, 1, 1, 1)
+    local dieAlpha = die.spent and 0.45 or 1
+    love.graphics.setColor(1, 1, 1, dieAlpha)
     local animationKey = (die.locked and hasBorderFrames) and "border" or "normal"
     local animation = die.animations[animationKey] or die.animations.normal
     local frameIndex = die.value
@@ -287,8 +377,8 @@ local function drawDie(die)
     love.graphics.setLineWidth(1)
 end
 
-local function drawHelp()
-    local text = "SPACE o clic destro: roll | Clic sinistro sul dado: blocca/sblocca"
+local function drawHelp()␊
+    local text = "SPACE/F o clic destro: segna e tira | Q: banca | Clic sinistro sul dado: blocca/sblocca"
     love.graphics.setFont(fonts.help)
     local width = fonts.help:getWidth(text)
     local height = fonts.help:getHeight()
@@ -314,35 +404,7 @@ local function loadDiceFramesFromAtlas()
 
     local textureWidth, textureHeight = diceSheet:getDimensions()
     diceFrameSets = {}
-    diceFrameMeta = {}
-
-    for setName, frames in pairs(diceAtlasConfig.frames) do
-        diceFrameSets[setName] = {}
-        diceFrameMeta[setName] = {}
-        for index, frame in ipairs(frames) do
-            local quad = love.graphics.newQuad(frame.x, frame.y, frame.width, frame.height, textureWidth, textureHeight)
-            diceFrameSets[setName][index] = quad
-            diceFrameMeta[setName][index] = {width = frame.width, height = frame.height}
-        end
-    end
-
-    if diceFrameSets.normal and #diceFrameSets.normal > 0 then
-        diceFrameCount = #diceFrameSets.normal
-        diceSpriteSize = diceFrameMeta.normal[1].width
-        return true
-    end
-
-    return false
-end
-
-local function buildDiceSpriteSheet()
-    if #diceImages == 0 then
-        return
-    end
-
-    local frameWidth = diceImages[1]:getWidth()
-    local frameHeight = diceImages[1]:getHeight()
-    local canvas = love.graphics.newCanvas(frameWidth * #diceImages, frameHeight)
+@@ -346,69 +464,90 @@ local function buildDiceSpriteSheet()
 
     love.graphics.push("all")
     love.graphics.setCanvas(canvas)
@@ -372,11 +434,31 @@ local function drawScore()
     love.graphics.setFont(fonts.score)
     local panelPadding = 16
     local lineSpacing = fonts.score:getHeight() + 6
-    local rollText = string.format("Roll attuale: %d", scores.roll)
-    local lockedText = string.format("Punteggio bloccati: %d", scores.locked)
-    local textWidth = math.max(fonts.score:getWidth(rollText), fonts.score:getWidth(lockedText))
+    local selectionText
+    if selection.dice > 0 then
+        if selection.valid then
+            selectionText = string.format("Selezione: %d", selection.points)
+        else
+            selectionText = "Selezione: 0 (non valida)"
+        end
+    else
+        selectionText = "Selezione: 0"
+    end
+    local lines = {
+        string.format("Punti potenziali: %d", scores.roll),
+        selectionText,
+        string.format("Punti turno: %d", turn.temp),
+        string.format("Cassaforte: %d", turn.banked),
+    }
+    if turn.bust then
+        table.insert(lines, "BUST! Nessun punteggio")
+    end
+    local textWidth = 0
+    for _, line in ipairs(lines) do
+        textWidth = math.max(textWidth, fonts.score:getWidth(line))
+    end
     local bgWidth = textWidth + panelPadding * 2
-    local bgHeight = lineSpacing * 2 + panelPadding * 2 - 6
+    local bgHeight = lineSpacing * #lines + panelPadding * 2 - 6
     local x = 24
     local y = 24
 
@@ -384,8 +466,9 @@ local function drawScore()
     love.graphics.rectangle("fill", x - panelPadding, y - panelPadding, bgWidth, bgHeight, 14, 14)
 
     love.graphics.setColor(1, 1, 1, 1)
-    love.graphics.print(rollText, x, y)
-    love.graphics.print(lockedText, x, y + lineSpacing)
+    for index, line in ipairs(lines) do
+        love.graphics.print(line, x, y + (index - 1) * lineSpacing)
+    end
 end
 
 function love.load()
@@ -412,41 +495,7 @@ function love.load()
     fonts.score = love.graphics.newFont(28)
     love.graphics.setFont(fonts.help)
 
-    for i = 1, numDice do
-        table.insert(dice, createDie())
-    end
-
-    updateLayout()
-    refreshScores()
-end
-
-function love.resize()
-    updateLayout()
-end
-
-local function updateDie(die, dt)
-    for _, animation in pairs(die.animations) do
-        animation:update(dt)
-    end
-    if die.animTime < die.animDuration then
-        die.animTime = math.min(die.animDuration, die.animTime + dt)
-        local t = die.animDuration == 0 and 1 or die.animTime / die.animDuration
-        local eased = easeOutCubic(t)
-        die.x = die.startX + (die.targetX - die.startX) * eased
-        die.y = die.startY + (die.targetY - die.startY) * eased
-        die.z = die.startZ + (die.targetZ - die.startZ) * eased + math.sin(t * math.pi) * die.bounce * (1 - t)
-        die.spin = die.spin + die.spinSpeed * dt * 60
-        die.jitter = die.jitter + dt * 4
-    else
-        local wobble = math.sin(love.timer.getTime() * 2 + die.jitter) * 0.005
-        die.z = die.targetZ + wobble
-        if die.isRolling then
-            for _, animation in pairs(die.animations) do
-                animation:gotoFrame(die.value)
-                animation:pause()
-            end
-            die.isRolling = false
-        end
+@@ -450,95 +589,96 @@ local function updateDie(die, dt)
     end
 end
 
@@ -474,36 +523,38 @@ end
 
 local function rollAllDice()
     dicePositions = generateDicePositions(#dice)
+    turn.bust = false
+    for _, die in ipairs(dice) do
+        die.locked = false
+        die.spent = false
+    end
+    ensureSelectedDieValid()
     for idx, die in ipairs(dice) do
         startRoll(die, idx)
     end
     refreshScores()
+    detectBust()
 end
 
 function love.keypressed(key)
-    local unlocked = getUnlockedDice()
     if key == "w" or key == "up" then
-        selectedDie = ((selectedDie - 2) % #dice) + 1
+        moveSelection(-1)
     elseif key == "s" or key == "down" then
-        selectedDie = (selectedDie % #dice) + 1
+        moveSelection(1)
     elseif key == "a" or key == "left" then
-        selectedDie = ((selectedDie - 2) % #dice) + 1
+        moveSelection(-1)
     elseif key == "d" or key == "right" then
-        selectedDie = (selectedDie % #dice) + 1
+        moveSelection(1)
     elseif key == "e" then
         local die = dice[selectedDie]
-        if die and not die.isRolling then
+        if die and not die.isRolling and not die.spent then
             die.locked = not die.locked
-            updateTurnScore()
+            refreshScores()
         end
-    elseif key == "f" then -- Score & Continue
-        if canScore() then
-            rollUnlockedDice()
-        end
+    elseif key == "f" or key == "space" or key == "return" then -- Score & Continue / Roll
+        attemptRoll()
     elseif key == "q" then -- Score & Pass
-        if canScore() then
-            bankPoints()
-        end
+        attemptBank()
     end
 end
 
@@ -521,9 +572,11 @@ local function toggleDieLock(x, y)
         local localX = dx * cosA - dy * sinA
         local localY = dx * sinA + dy * cosA
         if math.abs(localX) <= half and math.abs(localY) <= half and die.animTime >= die.animDuration then
-            die.locked = not die.locked
-            clicked = true
-            break
+            if not die.spent and not die.isRolling then
+                die.locked = not die.locked
+                clicked = true
+                break
+            end
         end
     end
     if clicked then
@@ -534,11 +587,8 @@ end
 
 function love.mousepressed(x, y, button)
     if button == 1 then
-        local handled = toggleDieLock(x, y)
-        if not handled then
-            rollAllDice()
-        end
+        toggleDieLock(x, y)
     elseif button == 2 then
-        rollAllDice()
+        attemptRoll()
     end
 end
