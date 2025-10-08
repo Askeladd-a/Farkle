@@ -179,7 +179,7 @@ local function drawDie(die)
     love.graphics.setColor(1, 1, 1, 1)
     local animationKey = (die.locked and hasBorderFrames) and "border" or "normal"
     local animation = die.animations[animationKey] or die.animations.normal
-    local frameIndex = animation:getFrame()
+    local frameIndex = die.value
     local metaList = diceFrameMeta[animationKey] or diceFrameMeta.normal
     local meta
     if metaList then
