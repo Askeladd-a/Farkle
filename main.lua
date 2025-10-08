@@ -46,7 +46,7 @@ local function createSelectionParticleSystem()
     end
     local ps = love.graphics.newParticleSystem(selectionParticleImages[1], 128)
     if #selectionParticleImages > 1 then
-        ps:setImages(table.unpack(selectionParticleImages))
+        ps:setImages(table_unpack(selectionParticleImages))
     end
     ps:setEmitterLifetime(-1)
     ps:setParticleLifetime(0.35, 0.85)
