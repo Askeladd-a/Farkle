@@ -388,11 +388,13 @@ local function endTurn(msg)
     game.rollTimer = 0
     game.ai:reset()
     local nextPrompt = nil
+    local aiTurn = false
     if not game.winner then
         game.active = (game.active % #game.players) + 1
         local nextPlayer = getActivePlayer()
         if nextPlayer.isAI then
             nextPrompt = "Neon Bot is thinking..."
+            aiTurn = true
         else
             nextPrompt = "Click Roll Dice to start your turn."
         end
@@ -406,6 +408,11 @@ local function endTurn(msg)
         end
     else
         game.message = nextPrompt or ""
+    end
+
+    -- Se è il turno dell'AI, fai partire subito il roll
+    if aiTurn then
+        startRoll()
     end
 end
 
