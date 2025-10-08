@@ -11,9 +11,9 @@ partenza per un progetto più ampio ispirato all'estetica di Balatro. L'ultima i
 2. Verifica l'installazione aprendo un terminale ed eseguendo `love --version`: dovresti vedere la versione installata e altre informazioni di build.
 3. Scarica o clona questo repository.
 4. Avvia il gioco con `love .` eseguito nella cartella del progetto.
-5. Premi **SPACE** o fai clic con il tasto destro del mouse per lanciare i sei dadi e vederli disporsi in proiezione isometrica sulla plancia in legno allegata.
+5. Usa il pulsante **Roll Dice** nell'angolo in basso per lanciare i dadi e vederli disporsi in proiezione isometrica sulla plancia in legno allegata.
 6. Clicca con il tasto sinistro su un dado per "bloccarlo": se è disponibile lo sprite con bordo, il dado userà automaticamente la versione incorniciata del foglio `sheet.png`; in caso contrario rimarrà illuminato dal glow giallo e non verrà rilanciato.
-7. Il riquadro in alto a sinistra mostra il punteggio totale del roll corrente e quello accumulato dai dadi bloccati.
+7. Quando hai accumulato abbastanza punti, clicca **Bank Points** per incassare il turno; il riquadro in alto a sinistra mostra il potenziale del roll corrente e quello accumulato dai dadi bloccati.
 
 ### Test rapido senza terminale
 Se preferisci non usare la riga di comando, puoi trascinare la cartella del progetto (o un archivio `.zip` del repository) direttamente sull'eseguibile di LÖVE: l'applicazione si avvierà caricando il prototipo.

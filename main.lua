@@ -47,10 +47,22 @@ local turn = {
 
 local aiController = AIController.new()
 
+local customCursor
+
 local gameState = "menu"
 local globalTime = 0
 local selectedDie = 1 -- index of the die selected for keyboard input
 local selection = {points = 0, valid = false, dice = 0}
+
+local refreshScores
+
+local actionButtonMetrics = {
+    width = 200,
+    height = 64,
+    spacing = 24,
+    marginX = 40,
+    marginY = 36,
+}
 
 local function getCurrentPlayer()
     return players[turn.player]
@@ -352,7 +364,7 @@ local function calculateScoreForDice(predicate)
     return scoring.scoreSelection(vals).points
 end
 
-local function refreshScores()
+refreshScores = function()
     updateSelectionScore()
     scores.roll = calculateScoreForDice()
     scores.selection = selection.points
@@ -492,6 +504,127 @@ local function attemptBank()
     bankPoints()
     refreshScores()
     return true
+end
+
+
+local function isRollActionEnabled()
+    if not isHumanTurn() or winnerIndex or turn.pendingRoll then
+        return false
+    end
+    if selection.dice > 0 then
+        return selection.valid
+    end
+    return turn.temp == 0
+end
+
+local function isBankActionEnabled()
+    if not isHumanTurn() or winnerIndex or turn.pendingRoll then
+        return false
+    end
+    if selection.dice > 0 then
+        return selection.valid
+    end
+    return turn.temp > 0
+end
+
+local function buildGameActionTemplates()
+    local templates = {}
+    if winnerIndex then
+        table.insert(templates, {
+            id = "playAgain",
+            label = "Play Again",
+            description = "Start a fresh duel",
+            enabled = true,
+            action = function()
+                startNewGame()
+            end,
+        })
+        table.insert(templates, {
+            id = "mainMenu",
+            label = "Main Menu",
+            description = "Return to the lobby",
+            enabled = true,
+            action = function()
+                setGameState("menu")
+            end,
+        })
+        return templates
+    end
+
+    table.insert(templates, {
+        id = "roll",
+        label = "Roll Dice",
+        description = "Reroll remaining dice",
+        enabled = isRollActionEnabled(),
+        action = function()
+            attemptRoll()
+        end,
+    })
+
+    table.insert(templates, {
+        id = "bank",
+        label = "Bank Points",
+        description = "Save turn total",
+        enabled = isBankActionEnabled(),
+        action = function()
+            attemptBank()
+        end,
+    })
+
+    table.insert(templates, {
+        id = "mainMenu",
+        label = "Main Menu",
+        description = "Leave the table",
+        enabled = true,
+        action = function()
+            setGameState("menu")
+        end,
+    })
+
+    return templates
+end
+
+local function getActionButtons()
+    if gameState ~= "game" then
+        return {}
+    end
+
+    local templates = buildGameActionTemplates()
+    local total = #templates
+    if total == 0 then
+        return {}
+    end
+
+    local metrics = actionButtonMetrics
+    local width = metrics.width
+    local height = metrics.height
+    local spacing = metrics.spacing
+    local marginX = metrics.marginX
+    local marginY = metrics.marginY
+
+    local screenWidth = love.graphics.getWidth()
+    local screenHeight = love.graphics.getHeight()
+    local totalWidth = width * total + spacing * (total - 1)
+    local startX = screenWidth - totalWidth - marginX
+    local y = screenHeight - height - marginY
+
+    local buttons = {}
+    for index, template in ipairs(templates) do
+        local x = startX + (index - 1) * (width + spacing)
+        buttons[index] = {
+            id = template.id,
+            label = template.label,
+            description = template.description,
+            enabled = template.enabled,
+            action = template.action,
+            x = x,
+            y = y,
+            width = width,
+            height = height,
+        }
+    end
+
+    return buttons
 end
 
 
@@ -649,7 +782,7 @@ end
 local function drawHelp()
     local text
     if winnerIndex then
-        text = "Press Enter/Space to play again or Esc for menu"
+        text = "Click Play Again to restart or Main Menu to leave the table."
     elseif isAITurn() then
         if turn.pendingRoll then
             text = "Neon Bot prepares the next roll..."
@@ -657,7 +790,13 @@ local function drawHelp()
             text = "Neon Bot is weighing the odds..."
         end
     elseif isHumanTurn() then
-        text = "Space/Enter/F or Right Click: score & roll    Q: bank winnings    Esc: main menu"
+        if selection.dice > 0 and not selection.valid then
+            text = "Click dice to adjust your set. Roll and Bank are disabled until it scores."
+        elseif selection.dice > 0 then
+            text = "Click Roll Dice to continue or Bank Points to cash out."
+        else
+            text = "Click dice to lock scoring sets, then use the buttons below to act."
+        end
     else
         text = "Preparing the next shooter..."
     end
@@ -671,6 +810,58 @@ local function drawHelp()
     love.graphics.setColor(0.98, 0.8, 0.3, 0.9)
     love.graphics.rectangle("line", x - 18, y - 10, width + 36, height + 20, 16, 16)
     drawShadowedText(fonts.help, text, x, y, {0.92, 0.94, 0.98, 1})
+end
+
+local function drawActionButtons()
+    if gameState ~= "game" then return end
+
+    local buttons = getActionButtons()
+    if #buttons == 0 then return end
+
+    local mouseX, mouseY = love.mouse.getPosition()
+
+    for _, button in ipairs(buttons) do
+        local hovered = mouseX >= button.x and mouseX <= button.x + button.width and mouseY >= button.y and mouseY <= button.y + button.height
+        local baseColor = {0.07, 0.12, 0.21, 0.82}
+        local borderColor = {0.95, 0.78, 0.28, 0.95}
+        local textColor = {0.93, 0.95, 0.99, 1}
+        local subTextColor = {0.82, 0.86, 0.95, 0.92}
+
+        if not button.enabled then
+            baseColor = {0.04, 0.06, 0.1, 0.6}
+            borderColor = {0.3, 0.36, 0.5, 0.8}
+            textColor = {0.6, 0.68, 0.82, 0.9}
+            subTextColor = {0.52, 0.58, 0.72, 0.85}
+        elseif hovered then
+            baseColor = {0.11, 0.18, 0.3, 0.9}
+            borderColor = {1, 0.83, 0.36, 1}
+        end
+
+        love.graphics.setColor(baseColor)
+        love.graphics.rectangle("fill", button.x, button.y, button.width, button.height, 18, 18)
+
+        love.graphics.setColor(borderColor)
+        love.graphics.setLineWidth(2)
+        love.graphics.rectangle("line", button.x, button.y, button.width, button.height, 18, 18)
+        love.graphics.setLineWidth(1)
+
+        local labelFont = fonts.body
+        local helpFont = fonts.help
+        love.graphics.setFont(labelFont)
+        local labelWidth = labelFont:getWidth(button.label)
+        local labelX = button.x + (button.width - labelWidth) * 0.5
+        local labelY = button.y + 14
+        drawShadowedText(labelFont, button.label, labelX, labelY, textColor, {0, 0, 0, 0.55})
+
+        if button.description then
+            love.graphics.setFont(helpFont)
+            local descWidth = helpFont:getWidth(button.description)
+            local descHeight = helpFont:getHeight()
+            local descX = button.x + (button.width - descWidth) * 0.5
+            local descY = button.y + button.height - descHeight - 12
+            drawShadowedText(helpFont, button.description, descX, descY, subTextColor, {0, 0, 0, 0.45})
+        end
+    end
 end
 
 local function drawAmbientBackground()
@@ -918,7 +1109,7 @@ local function drawScore()
     if winnerIndex then
         table.insert(lines, "")
         table.insert(lines, string.format("Goal: %d points", winningScore))
-        table.insert(lines, "Press Enter/Space to play again or Esc for menu")
+        table.insert(lines, "Click Play Again or Main Menu to decide your next move")
     end
 
     local textWidth = 0
@@ -947,6 +1138,19 @@ function love.load()
     love.graphics.setDefaultFilter("linear", "linear", 4)
     boardImage = love.graphics.newImage("asset/board.png")
     boardImage:setFilter("linear", "linear")
+
+    if love.filesystem.getInfo("asset/cursorGauntlet.png") then
+        local ok, cursorOrErr = pcall(function()
+            local hotspotX, hotspotY = 0, 0
+            return love.mouse.newCursor("asset/cursorGauntlet.png", hotspotX, hotspotY)
+        end)
+        if ok and cursorOrErr then
+            customCursor = cursorOrErr
+            love.mouse.setCursor(customCursor)
+        else
+            customCursor = nil
+        end
+    end
 
     diceImages = {}
     for value = 1, 6 do
@@ -1046,6 +1250,7 @@ function love.draw()
     if gameState == "game" then
         drawHelp()
         drawScore()
+        drawActionButtons()
     elseif gameState == "menu" then
         mainMenu:draw(fonts, drawShadowedText)
     elseif gameState == "options" then
@@ -1174,8 +1379,6 @@ function love.mousepressed(x, y, button)
                 activateMenuItem(index)
                 return
             end
-        elseif button == 2 then
-            love.event.quit()
         end
         return
     elseif gameState == "options" or gameState == "guide" then
@@ -1189,11 +1392,22 @@ function love.mousepressed(x, y, button)
         return
     end
 
-    if button == 1 then
-        toggleDieLock(x, y)
-    elseif button == 2 then
-        attemptRoll()
+    if button ~= 1 then
+        return
     end
+
+    local buttons = getActionButtons()
+    for _, actionButton in ipairs(buttons) do
+        local inside = x >= actionButton.x and x <= actionButton.x + actionButton.width and y >= actionButton.y and y <= actionButton.y + actionButton.height
+        if inside then
+            if actionButton.enabled and actionButton.action then
+                actionButton.action()
+            end
+            return
+        end
+    end
+
+    toggleDieLock(x, y)
 end
 
 function love.mousemoved(x, y)
