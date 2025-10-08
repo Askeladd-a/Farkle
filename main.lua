@@ -64,7 +64,7 @@ local dicePositions = nil
 
 local function randomGridPosition(idx)
     if dicePositions and dicePositions[idx] then
-        return table.unpack(dicePositions[idx])
+        return unpack(dicePositions[idx])
     else
         local padding = 0.6
         local ix = love.math.random() * (gridWidth - padding * 2) + padding
