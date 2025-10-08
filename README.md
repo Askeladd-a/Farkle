@@ -1,7 +1,7 @@
 # Farkle Prototype
 
 Questo repository contiene un prototipo giocabile di Farkle sviluppato con [LÖVE](https://love2d.org/), pensato come punto di
-partenza per un progetto più ampio ispirato all'estetica di Balatro.
+partenza per un progetto più ampio ispirato all'estetica di Balatro. L'ultima iterazione mantiene l'esperienza strictly singleplayer: affronti sempre "Neon Bot", un avversario controllato dall'IA che decide quando bloccare, rilanciare o incassare.
 
 ## Come provarlo
 1. Installa LÖVE 11.5 (o versione compatibile) dal sito ufficiale.
@@ -11,9 +11,9 @@ partenza per un progetto più ampio ispirato all'estetica di Balatro.
 2. Verifica l'installazione aprendo un terminale ed eseguendo `love --version`: dovresti vedere la versione installata e altre informazioni di build.
 3. Scarica o clona questo repository.
 4. Avvia il gioco con `love .` eseguito nella cartella del progetto.
-5. Premi **SPACE** o fai clic con il tasto destro del mouse per lanciare i sei dadi e vederli disporsi in proiezione isometrica sulla plancia in legno allegata.
-6. Clicca con il tasto sinistro su un dado per "bloccarlo": se è disponibile lo sprite con bordo, il dado userà automaticamente la versione incorniciata del foglio `sheet.png`; in caso contrario rimarrà illuminato dal glow giallo e non verrà rilanciato.
-7. Il riquadro in alto a sinistra mostra il punteggio totale del roll corrente e quello accumulato dai dadi bloccati.
+5. Usa il pulsante **Roll Dice** nell'angolo in basso per lanciare i dadi e vederli disporsi in proiezione isometrica sulla plancia in legno allegata.
+6. Clicca con il tasto sinistro su un dado per "bloccarlo": se è disponibile lo sprite con bordo, il dado userà automaticamente la versione incorniciata del foglio `sheet.png`; in caso contrario rimarrà illuminato dal glow giallo generato dai particellari integrati e non verrà rilanciato.
+7. Quando hai accumulato abbastanza punti, clicca **Bank Points** per incassare il turno; il riquadro in alto a sinistra mostra il potenziale del roll corrente e quello accumulato dai dadi bloccati.
 
 ### Test rapido senza terminale
 Se preferisci non usare la riga di comando, puoi trascinare la cartella del progetto (o un archivio `.zip` del repository) direttamente sull'eseguibile di LÖVE: l'applicazione si avvierà caricando il prototipo.
@@ -21,13 +21,19 @@ Se preferisci non usare la riga di comando, puoi trascinare la cartella del prog
 L'immagine della plancia (`assets/board.png`) e le facce dei dadi (`assets/die1.png` … `assets/die6.png`) corrispondono agli asset forniti dall'utente. Se aggiungi il foglio `assets/sheet.png` allegato con lo stesso nome, il gioco userà automaticamente le coordinate descritte in `assets/dice_atlas.lua` per leggere le animazioni dal texture atlas (inclusa la variante con bordo per i dadi bloccati). In assenza del foglio, il codice ricompone dinamicamente uno sprite sheet temporaneo partendo dalle sei facce individuali.
 
 ## Struttura del codice
-- `main.lua`: gestisce caricamento risorse, animazioni dei dadi tramite [anim8](https://github.com/kikito/anim8), input, rendering e calcolo rapido del punteggio roll/hold.
+- `main.lua`: gestisce caricamento risorse, animazioni dei dadi tramite [anim8](https://github.com/kikito/anim8), input, rendering, calcolo rapido del punteggio roll/hold e la logica dei turni (inclusa la decisione dell'IA Neon Bot su quando rilanciare o bancare).
 - `conf.lua`: configura la finestra del progetto LÖVE (risoluzione, titolo, identità).
-- `lib/anim8.lua`: versione vendorizzata della libreria anim8 (MIT) per semplificare la gestione di animazioni basate su sprite sheet.
+- `lib/anim8.lua`: versione vendorizzata della libreria anim8 (MIT) per semplificare la gestione di animazioni basate su spritesheet.
+- `lib/menu.lua`: raccoglie tutta la logica del menù principale (navigazione, rendering, reset) così che `main.lua` rimanga più snello.
+- `lib/ai.lua`: incapsula euristiche e tempistiche dell'IA "Neon Bot", alleggerendo ulteriormente `main.lua`.
+- `lib/scoring.lua`: contiene le funzioni di calcolo del punteggio Farkle e viene riutilizzato sia durante il roll sia durante il banking.
+- `lib/embedded_assets.lua`: incapsula (in Base64) il cursore "Gauntlet" e i tre sprite `light_0X` così da evitare file binari nel repository pur mantenendo l'aspetto originale durante il runtime.
 - `assets/board.png`: plancia in legno fornita dall'utente.
 - `assets/die1.png` … `assets/die6.png`: facce dei dadi stilizzate fornite dall'utente.
 - `assets/sheet.png` (opzionale): texture atlas dei dadi fornito dall'utente.
 - `assets/dice_atlas.lua`: mappa le coordinate dei frame normali e con bordo all'interno di `sheet.png`.
+- Gli sprite del cursore e delle particelle (`cursorGauntlet.png`, `light_01.png`, `light_02.png`, `light_03.png`) vengono generati a runtime da `lib/embedded_assets.lua`, quindi non è necessario conservarli come file binari nel repository.
+
 
 La logica dei dadi utilizza coordinate isometriche semplificate; i valori vengono ordinati per profondità in modo da disegnare i
 cubi con corretta sovrapposizione. Un easing "ease-out" crea un movimento morbido durante il roll mentre anim8 cicla rapidamente le facce per simulare la rotazione dei dadi.
