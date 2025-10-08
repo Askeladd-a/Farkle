@@ -111,7 +111,7 @@ function Dice.arrangeScatter(tray, roll, opts)
     local cx = tray.x + tray.w * 0.5
     local cy = tray.y + tray.h * 0.5
     local n = #roll
-    local minDist = Dice.SIZE + 4  -- Ridotto per permettere più vicinanza
+    local minDist = Dice.SIZE + 8  -- Aumentato per evitare sovrapposizioni
     local maxRadius = math.min(tray.w, tray.h) * 0.35 - Dice.RADIUS
     
     -- Disposizione più realistica e casuale
@@ -171,15 +171,15 @@ function Dice.arrangeScatter(tray, roll, opts)
         end
     end
 
-    -- Iterazioni di separazione più delicate per mantenere l'aspetto naturale
-    for _ = 1, 15 do  -- Ridotto da 32 per mantenere più casualità
+    -- Iterazioni di separazione più aggressive per evitare sovrapposizioni
+    for _ = 1, 25 do  -- Aumentato per separazione migliore
         for i = 1, n do
             for j = i + 1, n do
                 local dx = roll[i].x - roll[j].x
                 local dy = roll[i].y - roll[j].y
                 local d = math.sqrt(dx * dx + dy * dy)
                 if d < minDist then
-                    local push = (minDist - d) * 0.3  -- Ridotto da 0.5 per movimento più delicato
+                    local push = (minDist - d) * 0.6  -- Aumentato per separazione più forte
                     local nx, ny = dx / (d + 0.01), dy / (d + 0.01)
                     roll[i].x = roll[i].x + nx * push
                     roll[i].y = roll[i].y + ny * push
@@ -218,13 +218,13 @@ local function drawPips(die)
 end
 
 function Dice.drawDie(die)
+    -- Ombra sempre visibile
+    love.graphics.setColor(0, 0, 0, 0.35)
+    love.graphics.ellipse("fill", die.x + 8, die.y + Dice.RADIUS + 6, Dice.RADIUS, Dice.RADIUS * 0.55)
+    
     -- Prova prima a usare le animazioni, altrimenti usa il rendering tradizionale
     if DiceAnimations.isInitialized() then
         local scale = Dice.SIZE / 64  -- Scala da 64px (spritesheet) a 48px (Dice.SIZE)
-        
-        -- Ombra
-        love.graphics.setColor(0, 0, 0, 0.35)
-        love.graphics.ellipse("fill", die.x + 8, die.y + Dice.RADIUS + 6, Dice.RADIUS, Dice.RADIUS * 0.55)
         
         -- Disegna il dado con animazione
         local success = DiceAnimations.drawDie(die, die.x, die.y, scale, die.angle)

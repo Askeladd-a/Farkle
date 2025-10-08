@@ -227,29 +227,59 @@ function DiceAnimations.drawDie(die, x, y, scale, rotation)
         animation = DiceAnimations.getFaceAnimation(die.value)
     end
     
+    -- Disegna sempre un dado visibile, anche se le animazioni non funzionano
     if animation and animation.draw then
         local success = pcall(function() 
             animation:draw(diceImage, -32, -32)  -- Centra l'animazione
         end)
         if not success then
             print("Errore nel disegno dell'animazione per dado valore " .. (die.value or "nil"))
-            -- Fallback: disegna un quadrato bianco
-            love.graphics.setColor(0.9, 0.9, 0.9, 1)
+            -- Fallback: disegna un dado bianco solido
+            love.graphics.setColor(0.95, 0.95, 0.95, 1)
             love.graphics.rectangle("fill", -32, -32, 64, 64, 8, 8)
-            love.graphics.setColor(0.2, 0.2, 0.2, 1)
+            love.graphics.setColor(0.1, 0.1, 0.1, 1)
+            love.graphics.setLineWidth(2)
             love.graphics.rectangle("line", -32, -32, 64, 64, 8, 8)
+            -- Disegna i pip
+            DiceAnimations.drawSimplePips(die.value or 1)
         end
     else
         print("Nessuna animazione disponibile per dado valore " .. (die.value or "nil") .. " - isRolling: " .. tostring(die.isRolling))
-        -- Fallback: disegna un quadrato bianco
-        love.graphics.setColor(0.9, 0.9, 0.9, 1)
+        -- Fallback: disegna un dado bianco solido
+        love.graphics.setColor(0.95, 0.95, 0.95, 1)
         love.graphics.rectangle("fill", -32, -32, 64, 64, 8, 8)
-        love.graphics.setColor(0.2, 0.2, 0.2, 1)
+        love.graphics.setColor(0.1, 0.1, 0.1, 1)
+        love.graphics.setLineWidth(2)
         love.graphics.rectangle("line", -32, -32, 64, 64, 8, 8)
+        -- Disegna i pip
+        DiceAnimations.drawSimplePips(die.value or 1)
     end
     
     love.graphics.pop()
     return true
+end
+
+-- Disegna pip semplici per il fallback
+function DiceAnimations.drawSimplePips(value)
+    love.graphics.setColor(0.1, 0.1, 0.1, 1)
+    local pipSize = 4
+    local centerX, centerY = 0, 0
+    local offset = 12
+    
+    -- Configurazione pip per ogni faccia
+    local pipPositions = {
+        [1] = {{centerX, centerY}},
+        [2] = {{-offset, -offset}, {offset, offset}},
+        [3] = {{-offset, -offset}, {centerX, centerY}, {offset, offset}},
+        [4] = {{-offset, -offset}, {offset, -offset}, {-offset, offset}, {offset, offset}},
+        [5] = {{-offset, -offset}, {offset, -offset}, {centerX, centerY}, {-offset, offset}, {offset, offset}},
+        [6] = {{-offset, -offset}, {offset, -offset}, {-offset, centerY}, {offset, centerY}, {-offset, offset}, {offset, offset}},
+    }
+    
+    local positions = pipPositions[value] or pipPositions[1]
+    for _, pos in ipairs(positions) do
+        love.graphics.circle("fill", pos[1], pos[2], pipSize)
+    end
 end
 
 -- Controlla se le animazioni sono inizializzate
