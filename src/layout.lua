@@ -39,27 +39,35 @@ function M.setupLayout(windowW, windowH, fonts, BUTTON_LABELS, boardImage)
         h = boardH * scale,
         scale = scale
     }
-    -- 1) Plancine traslucide: centrati e dentro la cornice dorata interna
-    local frameMarginX = board.w * 0.015
-    local frameMarginY = board.h * 0.015
-    local trayW = board.w * 0.82
-    local trayH = (board.h * 0.5) * 0.7
-    local trayX = board.x + frameMarginX
-    local trayY_ai = board.y + frameMarginY
-    local trayY_player = board.y + board.h * 0.5 + frameMarginY * 0.5
+    -- 1) Plancine traslucide: adattate all'area delimitata dalla cornice dorata interna
+    local innerFrame = {
+        left = 162 / 1024,
+        right = 862 / 1024,
+        topTop = 118 / 1024,
+        topBottom = 474 / 1024,
+        bottomTop = 545 / 1024,
+        bottomBottom = 905 / 1024,
+    }
+    local trayW = board.w * (innerFrame.right - innerFrame.left)
+    local trayX = board.x + board.w * innerFrame.left
+    local trayY_ai = board.y + board.h * innerFrame.topTop
+    local trayH_ai = board.h * (innerFrame.topBottom - innerFrame.topTop)
+    local trayY_player = board.y + board.h * innerFrame.bottomTop
+    local trayH_player = board.h * (innerFrame.bottomBottom - innerFrame.bottomTop)
     -- Colonne dei dadi tenuti
-    local keptW, keptH = trayW * 0.13, trayH
+    local keptW_ai = trayW * 0.13
+    local keptW_player = keptW_ai
     local kept_ai = {
         x = trayX,
         y = trayY_ai,
-        w = keptW,
-        h = keptH,
+        w = keptW_ai,
+        h = trayH_ai,
     }
     local kept_player = {
-        x = trayX + trayW - keptW,
+        x = trayX + trayW - keptW_player,
         y = trayY_player,
-        w = keptW,
-        h = keptH,
+        w = keptW_player,
+        h = trayH_player,
     }
     -- 2) Tasti: 2x2 grid a destra della board
         local buttonW = math.min(200 * scale, windowW * 0.13)
@@ -98,8 +106,8 @@ function M.setupLayout(windowW, windowH, fonts, BUTTON_LABELS, boardImage)
     return {
         board = board,
         trays = {
-            ai = {x = trayX, y = trayY_ai, w = trayW, h = trayH},
-            player = {x = trayX, y = trayY_player, w = trayW, h = trayH},
+            ai = {x = trayX, y = trayY_ai, w = trayW, h = trayH_ai},
+            player = {x = trayX, y = trayY_player, w = trayW, h = trayH_player},
         },
         kept = {
             ai = kept_ai,
