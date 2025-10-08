@@ -41,23 +41,22 @@ local function loadSelectionParticleImages()
 end
 
 local function createSelectionParticleSystem()
-    if #selectionParticleImages == 0 then
+    local count = #selectionParticleImages
+    if count == 0 then
         return nil
     end
-    local ps = love.graphics.newParticleSystem(selectionParticleImages[1], 128)
-    if #selectionParticleImages > 1 and ps.setImages then
-        ps:setImages(table_unpack(selectionParticleImages))
-    end
+    local image = selectionParticleImages[love.math.random(1, count)]
+    local ps = love.graphics.newParticleSystem(image, 96)
     ps:setEmitterLifetime(-1)
     ps:setParticleLifetime(0.35, 0.85)
-    ps:setEmissionRate(90)
-    ps:setSizeVariation(0.8)
-    ps:setSizes(0.45, 0.1)
-    ps:setSpeed(22, 60)
-    ps:setLinearAcceleration(-28, -28, 28, 28)
-    ps:setRadialAcceleration(-18, 18)
-    ps:setTangentialAcceleration(-26, 26)
-    ps:setSpin(-1.2, 1.2)
+    ps:setEmissionRate(48)
+    ps:setSizeVariation(0.65)
+    ps:setSizes(0.35, 0.08)
+    ps:setSpeed(18, 46)
+    ps:setLinearAcceleration(-22, -22, 22, 22)
+    ps:setRadialAcceleration(-14, 14)
+    ps:setTangentialAcceleration(-20, 20)
+    ps:setSpin(-1.1, 1.1)
     ps:setSpinVariation(1)
     ps:setColors(
         0.95, 0.85, 0.35, 0.82,
@@ -223,6 +222,7 @@ local function moveSelection(delta)
 end
 
 local rollAllDice
+local startRoll
 local startNewGame
 local generateDicePositions
 local attemptRoll
@@ -727,7 +727,8 @@ local function getActionButtons()
 end
 
 
-local function startRoll(die, idx)
+-- Handles the per-die animation state when a roll begins
+startRoll = function(die, idx)
     if die.locked then return end
     local maxFace = getAvailableFaceCount()
     die.value = love.math.random(1, maxFace)
@@ -1384,7 +1385,8 @@ function love.draw()
     end
 end
 
-function rollAllDice()
+-- Re-rolls every die (hot dice / new turn entry point)
+rollAllDice = function()
     if winnerIndex then return end
     turn.pendingRoll = false
     turn.pendingRollDelay = 0
