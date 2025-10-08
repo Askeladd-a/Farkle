@@ -297,7 +297,7 @@ end
 function love.load()
     love.graphics.setBackgroundColor(0.07, 0.09, 0.11)
     love.graphics.setDefaultFilter("linear", "linear", 4)
-    boardImage = love.graphics.newImage("assets/board.png")
+    boardImage = love.graphics.newImage("asset/board.png")
     boardImage:setFilter("linear", "linear")
 
     for value = 1, 6 do
