@@ -301,7 +301,7 @@ function love.load()
     boardImage:setFilter("linear", "linear")
 
     for value = 1, 6 do
-        local image = love.graphics.newImage(string.format("assets/die%d.png", value))
+        local image = love.graphics.newImage(string.format("asset/die%d.png", value))
         image:setFilter("linear", "linear")
         diceImages[value] = image
     end
