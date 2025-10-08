@@ -1384,7 +1384,7 @@ function love.draw()
     end
 end
 
-local function rollAllDice()
+function rollAllDice()
     if winnerIndex then return end
     turn.pendingRoll = false
     turn.pendingRollDelay = 0
