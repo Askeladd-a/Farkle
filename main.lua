@@ -477,13 +477,26 @@ local function startRoll()
 
     local tray = game.layout.trays[getActivePlayer().id]
     local roll = currentRoll()
-    for i = 1, game.diceLeft do
-        local die = Dice.newDie(tray)
-        die.locked = false
-        die.isRolling = true
-        die.particles = nil
-        table_insert(roll, die)
+
+    -- Se non ci sono dadi, è l'inizio del turno: crea 6 dadi
+    if #roll == 0 then
+        for i = 1, game.diceLeft do
+            local die = Dice.newDie(tray)
+            die.locked = false
+            die.isRolling = true
+            die.particles = nil
+            table_insert(roll, die)
+        end
+    else
+        -- Ri-rolla solo i dadi non tenuti
+        for _, die in ipairs(roll) do
+            if not die.locked then
+                die.isRolling = true
+                die.particles = nil
+            end
+        end
     end
+
     game.rolling = true
     game.rollTimer = 0
     resetSelection()
