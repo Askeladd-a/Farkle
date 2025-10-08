@@ -115,13 +115,90 @@ end
 -- === LAYOUT COMPUTATION ===
 -- Layout logic now in src/layout.lua
 
+local resolvedCustomFontPath = nil
+local loggedFontFallback = false
+
+local function safeLoadFont(path, size)
+    local ok, font = pcall(love.graphics.newFont, path, size)
+    if ok and font then
+        return font
+    end
+    return nil
+end
+
+local function findCustomFontPath()
+    if resolvedCustomFontPath ~= nil then
+        return resolvedCustomFontPath
+    end
+
+    local filesystem = love and love.filesystem
+    if filesystem then
+        local function checkCandidate(candidate)
+            if filesystem.getInfo and filesystem.getInfo(candidate, "file") then
+                resolvedCustomFontPath = candidate
+                return true
+            end
+            return false
+        end
+
+        local predefinedCandidates = {
+            "images/rothenbg.ttf",
+            "images/Rothenbg.ttf",
+            "images/rothenbg.otf",
+            "images/Rothenbg.otf",
+        }
+
+        for _, candidate in ipairs(predefinedCandidates) do
+            if checkCandidate(candidate) then
+                return resolvedCustomFontPath
+            end
+        end
+
+        if filesystem.getDirectoryItems then
+            local ok, items = pcall(filesystem.getDirectoryItems, "images")
+            if ok and items then
+                for _, item in ipairs(items) do
+                    local lower = item:lower()
+                    if lower:find("rothenbg", 1, true) then
+                        if lower:sub(-4) == ".ttf" or lower:sub(-4) == ".otf" then
+                            local candidate = "images/" .. item
+                            if checkCandidate(candidate) then
+                                return resolvedCustomFontPath
+                            end
+                        end
+                    end
+                end
+            end
+        end
+    end
+
+    resolvedCustomFontPath = "images/rothenbg.ttf"
+    return resolvedCustomFontPath
+end
+
+local function loadGameFont(size)
+    local fontPath = findCustomFontPath()
+    local font = safeLoadFont(fontPath, size)
+    if font then
+        return font
+    end
+
+    if not loggedFontFallback then
+        print(string.format("[Font] Unable to load Rothenbg font at '%s'. Using default Love2D font.", tostring(fontPath)))
+        loggedFontFallback = true
+    end
+
+    return love.graphics.newFont(size)
+end
+
 local function refreshFonts(width, height)
     local base = math.min(width, height)
-    fonts.title = love.graphics.newFont(math.max(48, math.floor(base * 0.07)))
-    fonts.h2 = love.graphics.newFont(math.max(28, math.floor(base * 0.04)))
-    fonts.body = love.graphics.newFont(math.max(20, math.floor(base * 0.028)))
-    fonts.small = love.graphics.newFont(math.max(16, math.floor(base * 0.022)))
-    fonts.tiny = love.graphics.newFont(math.max(12, math.floor(base * 0.018)))
+
+    fonts.title = loadGameFont(math.max(48, math.floor(base * 0.07)))
+    fonts.h2 = loadGameFont(math.max(28, math.floor(base * 0.04)))
+    fonts.body = loadGameFont(math.max(20, math.floor(base * 0.028)))
+    fonts.small = loadGameFont(math.max(16, math.floor(base * 0.022)))
+    fonts.tiny = loadGameFont(math.max(12, math.floor(base * 0.018)))
 end
 
 -- === GAME STATE MANAGEMENT ===
@@ -445,13 +522,37 @@ local function drawBoard()
     end
 end
 
-local function drawTray(tray)
-    -- Semi-transparent trays so the wooden board shows through
-    love.graphics.setColor(0.12, 0.08, 0.05, 0.75)
-    love.graphics.rectangle("fill", tray.x, tray.y, tray.w, tray.h, 18, 18)
-    love.graphics.setColor(0.12, 0.08, 0.05, 0.95)
-    love.graphics.setLineWidth(2)
-    love.graphics.rectangle("line", tray.x + 1, tray.y + 1, tray.w - 2, tray.h - 2, 18, 18)
+local function withScissor(rect, drawFn)
+    if not rect then
+        drawFn()
+        return
+    end
+
+    local prevX, prevY, prevW, prevH = love.graphics.getScissor()
+    love.graphics.setScissor(rect.x, rect.y, rect.w, rect.h)
+    drawFn()
+    if prevX then
+        love.graphics.setScissor(prevX, prevY, prevW, prevH)
+    else
+        love.graphics.setScissor()
+    end
+end
+
+local function drawTray(tray, clip)
+    if not tray then
+        return
+    end
+
+    local function drawOverlay()
+        -- Semi-transparent trays so the wooden board shows through
+        love.graphics.setColor(0.12, 0.08, 0.05, 0.75)
+        love.graphics.rectangle("fill", tray.x, tray.y, tray.w, tray.h, 18, 18)
+        love.graphics.setColor(0.12, 0.08, 0.05, 0.95)
+        love.graphics.setLineWidth(2)
+        love.graphics.rectangle("line", tray.x + 1, tray.y + 1, tray.w - 2, tray.h - 2, 18, 18)
+    end
+
+    withScissor(clip or tray, drawOverlay)
 end
 
 local function drawHUD()
@@ -919,8 +1020,8 @@ function love.draw()
         Render.drawLog(layout, fonts, game)
         -- Plancine traslucide centrati
         if layout.trays and layout.trays.ai and layout.trays.player then
-            drawTray(layout.trays.ai)
-            drawTray(layout.trays.player)
+            drawTray(layout.trays.ai, layout.trayClips and layout.trayClips.ai)
+            drawTray(layout.trays.player, layout.trayClips and layout.trayClips.player)
         end
         -- Colonne dadi tenuti
         if layout.kept and layout.kept.ai and layout.kept.player then
