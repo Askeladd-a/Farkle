@@ -96,17 +96,16 @@ function Dice.updateRoll(roll, tray, dt)
 end
 
 function Dice.arrangeScatter(tray, roll)
-    if #roll == 0 then
-        return
-    end
+    if #roll == 0 then return end
 
     local cx = tray.x + tray.w * 0.5
     local cy = tray.y + tray.h * 0.5
-    local radius = math.min(tray.w, tray.h) * 0.42
+    local radius = math.min(tray.w, tray.h) * 0.38 - Dice.RADIUS
+    local angleStep = (math.pi * 2) / math.max(#roll, 1)
 
-    for _, die in ipairs(roll) do
-        local angle = random() * math.pi * 2
-        local dist = math.sqrt(random()) * radius
+    for i, die in ipairs(roll) do
+        local angle = angleStep * (i - 1) + (random() - 0.5) * 0.2
+        local dist = radius * (0.7 + 0.3 * random())
         die.x = cx + math.cos(angle) * dist
         die.y = cy + math.sin(angle) * dist
         die.angle = (random() - 0.5) * 0.35
@@ -114,7 +113,8 @@ function Dice.arrangeScatter(tray, roll)
         die.locked = false
     end
 
-    for _ = 1, 36 do
+    -- Piccola separazione per evitare sovrapposizioni
+    for _ = 1, 24 do
         for i = 1, #roll do
             for j = i + 1, #roll do
                 separateDice(roll[i], roll[j])

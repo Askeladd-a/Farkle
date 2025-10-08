@@ -77,10 +77,14 @@ local function setupStripes(height)
 end
 
 local function setupLayout(width, height)
-    local boardWidth = math.min(width * 0.8, height * 0.7 * (4 / 3))
+    -- Board centrata, ma lasciamo spazio sopra per HUD e sotto per pulsanti
+    local marginY = math.max(32, height * 0.08)
+    local marginX = math.max(24, width * 0.05)
+    local usableHeight = height - marginY * 2 - 180 -- spazio per HUD e pulsanti
+    local boardWidth = math.min(width - marginX * 2, usableHeight * (4 / 3))
     local boardHeight = boardWidth * (3 / 4)
     local boardX = (width - boardWidth) / 2
-    local boardY = (height - boardHeight) / 2
+    local boardY = marginY + 100 -- sotto l'HUD
 
     game.layout.board = {x = boardX, y = boardY, w = boardWidth, h = boardHeight}
     game.layout.hingeY = boardY + boardHeight * 0.68
@@ -88,21 +92,22 @@ local function setupLayout(width, height)
     local trayWidth = boardWidth * 0.72
     local trayHeight = boardHeight * 0.18
     local trayX = boardX + (boardWidth - trayWidth) / 2
+    local traySpacing = math.max(32, boardHeight * 0.08)
 
     game.layout.trays.ai = {
         x = trayX,
-        y = boardY + boardHeight * 0.08,
+        y = boardY + traySpacing,
         w = trayWidth,
         h = trayHeight,
     }
     game.layout.trays.player = {
         x = trayX,
-        y = boardY + boardHeight - trayHeight - boardHeight * 0.08,
+        y = boardY + boardHeight - trayHeight - traySpacing,
         w = trayWidth,
         h = trayHeight,
     }
 
-    local keptSpacing = 96
+    local keptSpacing = math.max(96, trayWidth * 0.18)
     game.layout.kept.ai = {
         x = trayX - keptSpacing,
         y = game.layout.trays.ai.y,
@@ -116,23 +121,26 @@ local function setupLayout(width, height)
         h = trayHeight,
     }
 
+    -- HUD centrato in alto
     game.layout.hud = {
-        x = boardX + (boardWidth - 340) / 2,
-        y = game.layout.hingeY - 30,
+        x = (width - 340) / 2,
+        y = marginY,
         w = 340,
         h = 150,
     }
 
+    -- Messaggio centrato sotto la board
     game.layout.message = {
         x = boardX + 32,
-        y = game.layout.hingeY + 40,
+        y = boardY + boardHeight + 16,
         w = boardWidth - 64,
         h = 90,
     }
 
+    -- Pulsanti sempre visibili in basso centrati
     game.layout.buttons = {
-        x = boardX + boardWidth - 220,
-        y = boardY + boardHeight + 30,
+        x = (width - 200) / 2,
+        y = height - marginY - 56 * 2,
         w = 200,
         h = 56,
         spacing = 18,
