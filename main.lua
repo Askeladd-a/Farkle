@@ -1,6 +1,7 @@
 local anim8 = require("lib.anim8")
 local Menu = require("lib.menu")
 local AIController = require("lib.ai")
+local EmbeddedAssets = require("lib.embedded_assets")
 
 local table_unpack = table.unpack or unpack
 
@@ -26,18 +27,10 @@ local diceFrameImages = {}
 local diceFrameCount = 0
 local diceSpriteSize = 64
 local selectionParticleImages = {}
+local layout = {board = {}, trays = {}, keptColumns = {}, hingeY = 0}
 
 local function loadSelectionParticleImages()
-    selectionParticleImages = {}
-    local names = {"light_01.png", "light_02.png", "light_03.png"}
-    for _, filename in ipairs(names) do
-        local path = "asset/" .. filename
-        if love.filesystem.getInfo(path) then
-            local image = love.graphics.newImage(path)
-            image:setFilter("linear", "linear")
-            table.insert(selectionParticleImages, image)
-        end
-    end
+    selectionParticleImages = EmbeddedAssets.buildLightImages() or {}
 end
 
 local function setParticleTexture(ps, image)
@@ -110,8 +103,31 @@ local players = {
 
 local winningScore = 10000
 local winnerIndex = nil
+local turn
 
-local turn = {
+local function buildKeptDiceContainer()
+    local container = {}
+    for _, player in ipairs(players) do
+        container[player.id] = {}
+    end
+    return container
+end
+
+local function resetAllKeptDice()
+    if not turn then return end
+    turn.keptDice = buildKeptDiceContainer()
+end
+
+local function clearKeptDiceForPlayer(playerId)
+    if not playerId then return end
+    if not turn then return end
+    if not turn.keptDice then
+        resetAllKeptDice()
+    end
+    turn.keptDice[playerId] = {}
+end
+
+turn = {
     player = 1,
     temp = 0,   -- points accumulated during the current turn
     bust = false, -- true if the last roll was a bust
@@ -120,6 +136,7 @@ local turn = {
     lastOutcome = nil,
     pendingRoll = false,
     pendingRollDelay = 0,
+    keptDice = buildKeptDiceContainer(),
 }
 
 local aiController = AIController.new()
@@ -236,12 +253,12 @@ local function moveSelection(delta)
     end
 end
 
-local rollAllDice
-local startRoll
+local rollAllDice = function() end
+local startRoll = function() end
 local startNewGame
 local generateDicePositions
-local attemptRoll
-local attemptBank
+local attemptRoll = function() return false end
+local attemptBank = function() return false end
 local detectBust
 
 local mainMenu = Menu.new({
@@ -288,6 +305,8 @@ local function declareWinner(bankedAmount)
         die.spent = true
     end
 
+    resetAllKeptDice()
+
     ensureSelectedDieValid()
 
     local message = string.format("%s wins with %d!", player.name, player.banked)
@@ -303,6 +322,7 @@ local function endCurrentTurn(opts)
     opts = opts or {}
     local player = getCurrentPlayer()
     if not player then return end
+    local playerId = player.id
 
     if opts.message then
         turn.lastOutcome = opts.message
@@ -328,6 +348,7 @@ local function endCurrentTurn(opts)
     end
 
     ensureSelectedDieValid()
+    clearKeptDiceForPlayer(playerId)
 
     local previous = turn.player
     turn.player = getNextPlayerIndex(previous)
@@ -349,8 +370,11 @@ local function rollUnlockedDice()
         end
     end
     if #toRoll == 0 then return end
-    dicePositions = generateDicePositions(#toRoll)
+    local player = getCurrentPlayer()
+    local ownerId = player and player.id or nil
+    dicePositions = generateDicePositions(#toRoll, ownerId)
     for idx, die in ipairs(toRoll) do
+        die.owner = ownerId
         startRoll(die, idx)
     end
     refreshScores()
@@ -384,6 +408,11 @@ local diceSize = 56
 local boardAnchorX, boardAnchorY = 0.5, 0.36
 local gridWidth, gridHeight = 6, 4
 local rollDurationRange = {0.45, 0.8}
+local playerTrayConfigs = {
+    human = {centerX = gridWidth * 0.5, centerY = gridHeight * 0.82, radiusX = gridWidth * 0.42, radiusY = gridHeight * 0.28},
+    ai = {centerX = gridWidth * 0.5, centerY = gridHeight * 0.34, radiusX = gridWidth * 0.42, radiusY = gridHeight * 0.28},
+}
+local defaultTrayConfig = {centerX = gridWidth * 0.5, centerY = gridHeight * 0.56, radiusX = gridWidth * 0.42, radiusY = gridHeight * 0.28}
 
 local function isoToScreen(ix, iy, iz)
     local x = (ix - iy) * (tileWidth * 0.5)
@@ -397,25 +426,63 @@ local function easeOutCubic(t)
 end
 
 -- Genera posizioni predefinite ben distanziate per i dadi
-generateDicePositions = function(num)
+generateDicePositions = function(num, ownerId)
     local positions = {}
-    -- Tray piu' grande: due righe in basso
-    local trayY1 = gridHeight - 0.6
-    local trayY2 = gridHeight - 1.3
-    local trayX = {1, 2, 3, 4, 5, 6}
+    if num <= 0 then
+        return positions
+    end
+
+    local config = playerTrayConfigs[ownerId or (getCurrentPlayer() and getCurrentPlayer().id)] or defaultTrayConfig
+    local centerX = config.centerX
+    local centerY = config.centerY
+    local radiusX = config.radiusX
+    local radiusY = config.radiusY
+    local marginX = math.min(0.6, radiusX * 0.35)
+    local marginY = math.min(0.55, radiusY * 0.35)
+    local minX = centerX - radiusX + marginX
+    local maxX = centerX + radiusX - marginX
+    local minY = centerY - radiusY + marginY
+    local maxY = centerY + radiusY - marginY
+
     for i = 1, num do
-        local gx = trayX[((i-1)%6)+1] or (i * (gridWidth-1)/(num-1))
-        local row = math.floor((i-1)/6)
-        local iy = (row == 0 and trayY1 or trayY2) + love.math.random() * 0.18
-        local ix = gx + love.math.random() * 0.22 - 0.11
-        local iz = love.math.random() * 0.2
-        table.insert(positions, {ix, iy, iz})
+        local angle = love.math.random() * 2 * math.pi
+        local distance = math.sqrt(love.math.random())
+        local ix = centerX + math.cos(angle) * radiusX * distance
+        local iy = centerY + math.sin(angle) * radiusY * distance
+        local iz = love.math.random() * 0.25
+        positions[i] = {ix, iy, iz}
     end
-    -- Mischia le posizioni
-    for i = #positions, 2, -1 do
-        local j = love.math.random(1, i)
-        positions[i], positions[j] = positions[j], positions[i]
+
+    local minDistance = 0.92
+    for _ = 1, 48 do
+        for i = 1, num do
+            local a = positions[i]
+            for j = i + 1, num do
+                local b = positions[j]
+                local dx = b[1] - a[1]
+                local dy = b[2] - a[2]
+                local dist = math.sqrt(dx * dx + dy * dy)
+                if dist > 0 and dist < minDistance then
+                    local push = (minDistance - dist) * 0.5
+                    local nx = dx / dist
+                    local ny = dy / dist
+                    a[1] = a[1] - nx * push
+                    a[2] = a[2] - ny * push
+                    b[1] = b[1] + nx * push
+                    b[2] = b[2] + ny * push
+                end
+            end
+        end
+
+        for i = 1, num do
+            local p = positions[i]
+            if p[1] < minX then p[1] = minX end
+            if p[1] > maxX then p[1] = maxX end
+            if p[2] < minY then p[2] = minY end
+            if p[2] > maxY then p[2] = maxY end
+        end
     end
+
     return positions
 end
 
@@ -550,11 +617,17 @@ local function commitSelection()
     if selection.dice == 0 or not selection.valid then
         return false, false
     end
+    local player = getCurrentPlayer()
+    local ownerId = player and player.id or nil
     turn.temp = turn.temp + selection.points
     for _, die in ipairs(dice) do
         if die.locked then
             die.locked = false
             die.spent = true
+            if ownerId then
+                turn.keptDice[ownerId] = turn.keptDice[ownerId] or {}
+                table.insert(turn.keptDice[ownerId], die.value)
+            end
         end
     end
     local allSpent = true
@@ -572,7 +645,7 @@ local function commitSelection()
     return true, allSpent
 end
 
-local function attemptRoll()
+attemptRoll = function()
     if winnerIndex or turn.pendingRoll then
         return false
     end
@@ -600,7 +673,7 @@ local function attemptRoll()
     end
 end
 
-local function attemptBank()
+attemptBank = function()
     if winnerIndex or turn.pendingRoll then
         return false
     end
@@ -783,6 +856,7 @@ local function createDie()
         spent = false,
         screenX = 0,
         screenY = 0,
+        owner = nil,
         animations = {},
         animationImages = {},
         particles = createSelectionParticleSystem(),
@@ -801,7 +875,7 @@ local function createDie()
     return die
 end
 
-local function startNewGame()
+startNewGame = function()
     dicePositions = nil
     dice = {}
     for i = 1, numDice do
@@ -821,6 +895,7 @@ local function startNewGame()
     turn.lastOutcome = nil
     turn.pendingRoll = false
     turn.pendingRollDelay = 0
+    resetAllKeptDice()
 
     aiController:reset()
 
@@ -847,6 +922,43 @@ local function updateLayout()
     local scaleW = sw / referenceW
     local scaleH = sh / referenceH
     uiScale = math.max(0.75, math.min(math.max(scaleW, scaleH), 1.5))
+
+    local boardWidth = boardImage:getWidth() * boardScale
+    local boardHeight = boardImage:getHeight() * boardScale
+    layout.board.x = boardX
+    layout.board.y = boardY
+    layout.board.w = boardWidth
+    layout.board.h = boardHeight
+
+    local trayWidth = boardWidth * 0.62
+    local trayHeight = boardHeight * 0.18
+    local trayX = boardX + (boardWidth - trayWidth) * 0.5
+    layout.trays.ai = {
+        x = trayX,
+        y = boardY + boardHeight * 0.16,
+        w = trayWidth,
+        h = trayHeight,
+    }
+    layout.trays.human = {
+        x = trayX,
+        y = boardY + boardHeight - trayHeight - boardHeight * 0.16,
+        w = trayWidth,
+        h = trayHeight,
+    }
+
+    layout.hingeY = boardY + boardHeight * 0.72
+
+    local columnOffset = trayHeight * 0.7
+    layout.keptColumns.ai = {
+        x = layout.trays.ai.x - columnOffset,
+        y = layout.trays.ai.y + 18,
+        align = "top",
+    }
+    layout.keptColumns.human = {
+        x = layout.trays.human.x - columnOffset,
+        y = layout.trays.human.y + layout.trays.human.h - 18,
+        align = "bottom",
+    }
 end
 
 local function drawDie(die)
@@ -1256,8 +1368,14 @@ local function drawScore()
     end
     local bgWidth = textWidth + panelPadding * 2
     local bgHeight = lineSpacing * #lines + panelPadding * 2 - 6 * uiScale
-    local x = 32 * uiScale
-    local y = 36 * uiScale
+    local hingeY = layout.hingeY or (layout.board.y + layout.board.h * 0.72)
+    local x = layout.board.x + (layout.board.w - bgWidth) * 0.5
+    local y = hingeY - bgHeight * 0.5
+    local minY = layout.board.y + layout.board.h * 0.55
+    local maxY = layout.board.y + layout.board.h - bgHeight - 24 * uiScale
+    if minY and maxY then
+        y = math.max(minY, math.min(maxY, y))
+    end
 
     love.graphics.setColor(0.05, 0.1, 0.18, 0.82)
     love.graphics.rectangle("fill", x - panelPadding, y - panelPadding, bgWidth, bgHeight, 18 * uiScale, 18 * uiScale)
@@ -1271,6 +1389,97 @@ local function drawScore()
     end
 end
 
+local function drawMiniDie(x, y, size, value)
+    local half = size * 0.5
+    love.graphics.setColor(0, 0, 0, 0.28)
+    love.graphics.ellipse("fill", x, y + half * 0.65, half * 0.85, half * 0.45)
+
+    local setName
+    if diceFrameSets.border and diceFrameSets.border[value] then
+        setName = "border"
+    elseif diceFrameSets.normal and diceFrameSets.normal[value] then
+        setName = "normal"
+    end
+
+    local scale = size / diceSpriteSize
+    if setName then
+        local image = diceFrameImages[setName] or diceSheet
+        local quad = diceFrameSets[setName] and diceFrameSets[setName][value]
+        if image and quad then
+            love.graphics.setColor(1, 1, 1, 1)
+            love.graphics.draw(image, quad, x - half, y - half, 0, scale, scale)
+            return
+        end
+    end
+
+    love.graphics.setColor(0.95, 0.92, 0.84, 1)
+    love.graphics.rectangle("fill", x - half, y - half, size, size, 8, 8)
+    love.graphics.setColor(0.22, 0.19, 0.13, 1)
+    love.graphics.setLineWidth(2)
+    love.graphics.rectangle("line", x - half, y - half, size, size, 8, 8)
+    love.graphics.setLineWidth(1)
+    love.graphics.circle("fill", x, y, size * 0.12)
+end
+
+local function drawKeptDiceColumn(playerId)
+    local column = layout.keptColumns[playerId]
+    local values = turn.keptDice[playerId]
+    if not column or not values or #values == 0 then
+        return
+    end
+
+    local size = diceSize * boardScale * 0.7
+    local spacing = size * 1.08
+    local x = math.max(layout.board.x + size * 0.6, column.x)
+    x = math.min(x, layout.board.x + layout.board.w - size * 0.6)
+    local y = column.y
+    if column.align == "bottom" then
+        y = column.y - spacing * (#values - 1)
+    end
+
+    love.graphics.setColor(0.11, 0.07, 0.05, 0.65)
+    local panelHeight = spacing * #values + size * 0.4
+    local panelY = (column.align == "bottom" and (column.y - panelHeight + size * 0.5)) or (y - size * 0.5)
+    love.graphics.rectangle("fill", x - size, panelY, size * 2, panelHeight, 14, 14)
+    love.graphics.setColor(0.45, 0.32, 0.16, 0.85)
+    love.graphics.setLineWidth(2)
+    love.graphics.rectangle("line", x - size, panelY, size * 2, panelHeight, 14, 14)
+    love.graphics.setLineWidth(1)
+
+    local label = playerId == "human" and "Your keep" or "Bot keep"
+    love.graphics.setColor(0.93, 0.9, 0.78, 0.9)
+    love.graphics.setFont(fonts.help)
+    love.graphics.printf(label, x - size, panelY - fonts.help:getHeight() - 6, size * 2, "center")
+
+    for index, value in ipairs(values) do
+        local drawY = (column.align == "bottom") and (column.y - spacing * (index - 1)) or (y + spacing * (index - 1))
+        drawMiniDie(x, drawY, size, value)
+    end
+end
+
+local function drawKeptDicePanels()
+    for _, player in ipairs(players) do
+        drawKeptDiceColumn(player.id)
+    end
+end
+
+local function drawTrayOverlays()
+    if not layout.trays then return end
+    local current = getCurrentPlayer()
+    local activeId = current and current.id
+    for playerId, rect in pairs(layout.trays) do
+        local isActive = activeId == playerId
+        local baseAlpha = isActive and 0.22 or 0.12
+        local borderAlpha = isActive and 0.55 or 0.3
+        love.graphics.setColor(0.08, 0.12, 0.18, baseAlpha)
+        love.graphics.rectangle("fill", rect.x, rect.y, rect.w, rect.h, 24, 24)
+        love.graphics.setColor(1.0, 0.84, 0.32, borderAlpha)
+        love.graphics.setLineWidth(2)
+        love.graphics.rectangle("line", rect.x, rect.y, rect.w, rect.h, 24, 24)
+    end
+    love.graphics.setLineWidth(1)
+end
+
 function love.load()
     love.graphics.setBackgroundColor(0.04, 0.05, 0.08)
     love.graphics.setDefaultFilter("linear", "linear", 4)
@@ -1278,8 +1487,12 @@ function love.load()
     boardImage:setFilter("linear", "linear")
 
     local ok, cursorOrErr = pcall(function()
+        local imageData = EmbeddedAssets.buildCursorImageData()
+        if not imageData then
+            return nil
+        end
         local hotspotX, hotspotY = 0, 0
-        return love.mouse.newCursor("asset/cursorGauntlet.png", hotspotX, hotspotY)
+        return love.mouse.newCursor(imageData, hotspotX, hotspotY)
     end)
     if ok and cursorOrErr then
         customCursor = cursorOrErr
@@ -1380,6 +1593,8 @@ function love.draw()
     love.graphics.setColor(1, 1, 1, 0.92)
     love.graphics.draw(boardImage, boardX, boardY, 0, boardScale, boardScale)
 
+    drawTrayOverlays()
+
     table.sort(dice, function(a, b)
         return (a.x + a.y + a.z) < (b.x + b.y + b.z)
     end)
@@ -1389,6 +1604,7 @@ function love.draw()
     end
 
     if gameState == "game" then
+        drawKeptDicePanels()
         drawHelp()
         drawScore()
         drawActionButtons()
@@ -1407,11 +1623,17 @@ rollAllDice = function()
     turn.pendingRoll = false
     turn.pendingRollDelay = 0
     aiController:clearPending()
-    dicePositions = generateDicePositions(#dice)
+    local player = getCurrentPlayer()
+    local ownerId = player and player.id or nil
+    dicePositions = generateDicePositions(#dice, ownerId)
     turn.bust = false
     for _, die in ipairs(dice) do
         die.locked = false
         die.spent = false
+        die.owner = ownerId
+    end
+    if ownerId then
+        clearKeptDiceForPlayer(ownerId)
     end
     ensureSelectedDieValid()
     for idx, die in ipairs(dice) do

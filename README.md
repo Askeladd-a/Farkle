@@ -12,7 +12,7 @@ partenza per un progetto più ampio ispirato all'estetica di Balatro. L'ultima i
 3. Scarica o clona questo repository.
 4. Avvia il gioco con `love .` eseguito nella cartella del progetto.
 5. Usa il pulsante **Roll Dice** nell'angolo in basso per lanciare i dadi e vederli disporsi in proiezione isometrica sulla plancia in legno allegata.
-6. Clicca con il tasto sinistro su un dado per "bloccarlo": se è disponibile lo sprite con bordo, il dado userà automaticamente la versione incorniciata del foglio `sheet.png`; in caso contrario rimarrà illuminato dal glow giallo e non verrà rilanciato.
+6. Clicca con il tasto sinistro su un dado per "bloccarlo": se è disponibile lo sprite con bordo, il dado userà automaticamente la versione incorniciata del foglio `sheet.png`; in caso contrario rimarrà illuminato dal glow giallo generato dai particellari integrati e non verrà rilanciato.
 7. Quando hai accumulato abbastanza punti, clicca **Bank Points** per incassare il turno; il riquadro in alto a sinistra mostra il potenziale del roll corrente e quello accumulato dai dadi bloccati.
 
 ### Test rapido senza terminale
@@ -27,10 +27,12 @@ L'immagine della plancia (`assets/board.png`) e le facce dei dadi (`assets/die1.
 - `lib/menu.lua`: raccoglie tutta la logica del menù principale (navigazione, rendering, reset) così che `main.lua` rimanga più snello.
 - `lib/ai.lua`: incapsula euristiche e tempistiche dell'IA "Neon Bot", alleggerendo ulteriormente `main.lua`.
 - `lib/scoring.lua`: contiene le funzioni di calcolo del punteggio Farkle e viene riutilizzato sia durante il roll sia durante il banking.
+- `lib/embedded_assets.lua`: incapsula (in Base64) il cursore "Gauntlet" e i tre sprite `light_0X` così da evitare file binari nel repository pur mantenendo l'aspetto originale durante il runtime.
 - `assets/board.png`: plancia in legno fornita dall'utente.
 - `assets/die1.png` … `assets/die6.png`: facce dei dadi stilizzate fornite dall'utente.
 - `assets/sheet.png` (opzionale): texture atlas dei dadi fornito dall'utente.
 - `assets/dice_atlas.lua`: mappa le coordinate dei frame normali e con bordo all'interno di `sheet.png`.
+- Gli sprite del cursore e delle particelle (`cursorGauntlet.png`, `light_01.png`, `light_02.png`, `light_03.png`) vengono generati a runtime da `lib/embedded_assets.lua`, quindi non è necessario conservarli come file binari nel repository.
 
 
 La logica dei dadi utilizza coordinate isometriche semplificate; i valori vengono ordinati per profondità in modo da disegnare i
