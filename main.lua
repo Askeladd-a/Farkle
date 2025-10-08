@@ -137,11 +137,15 @@ local function setupLayout(width, height)
         h = 90,
     }
 
-    -- Pulsanti sempre visibili in basso centrati
+    -- Pulsanti a destra della board, centrati verticalmente rispetto alla board
+    local buttonPanelW = 200
+    local buttonPanelH = 4 * 56 + 3 * 18
+    local buttonPanelX = boardX + boardWidth + math.max(24, width * 0.03)
+    local buttonPanelY = boardY + (boardHeight - buttonPanelH) / 2
     game.layout.buttons = {
-        x = (width - 200) / 2,
-        y = height - marginY - 56 * 2,
-        w = 200,
+        x = buttonPanelX,
+        y = buttonPanelY,
+        w = buttonPanelW,
         h = 56,
         spacing = 18,
     }
@@ -451,29 +455,37 @@ local function drawHUD()
     love.graphics.setLineWidth(2)
     love.graphics.rectangle("line", hud.x + 4, hud.y + 4, hud.w - 8, hud.h - 8, 14, 14)
 
+    -- Colonne ben distanziate
+    local col1 = hud.x + 20
+    local col2 = hud.x + 140
+    local col3 = hud.x + 240
+    local row1 = hud.y + 20
+    local row2 = hud.y + 60
+    local row3 = hud.y + 100
+
     love.graphics.setFont(fonts.small)
     love.graphics.setColor(1, 0.95, 0.7)
-    love.graphics.print(game.players[1].name, hud.x + 20, hud.y + 20)
-    love.graphics.print("Goal", hud.x + 20, hud.y + 56)
-    love.graphics.print(game.players[2].name, hud.x + 20, hud.y + 92)
+    love.graphics.print(game.players[1].name, col1, row1)
+    love.graphics.print("Goal", col1, row2)
+    love.graphics.print(game.players[2].name, col1, row3)
 
     love.graphics.setFont(fonts.h2)
     love.graphics.setColor(0.65, 0.8, 1.0)
-    love.graphics.print(game.players[1].banked, hud.x + 140, hud.y + 16)
+    love.graphics.print(game.players[1].banked, col2, row1 - 4)
     love.graphics.setColor(0.95, 0.88, 0.45)
-    love.graphics.print(winningScore, hud.x + 140, hud.y + 52)
+    love.graphics.print(winningScore, col2, row2 - 4)
     love.graphics.setColor(1.0, 0.6, 0.55)
-    love.graphics.print(game.players[2].banked, hud.x + 140, hud.y + 88)
+    love.graphics.print(game.players[2].banked, col2, row3 - 4)
 
     love.graphics.setFont(fonts.small)
     love.graphics.setColor(0.9, 0.85, 0.78)
-    love.graphics.print("Round", hud.x + 250, hud.y + 20)
-    love.graphics.print("Selected", hud.x + 250, hud.y + 56)
+    love.graphics.print("Round", col3, row1)
+    love.graphics.print("Selected", col3, row2)
     love.graphics.setFont(fonts.h2)
     love.graphics.setColor(0.72, 0.9, 0.9)
-    love.graphics.print(game.roundScore, hud.x + 250, hud.y + 40)
+    love.graphics.print(game.roundScore, col3, row1 + 20)
     love.graphics.setColor(0.9, 0.75, 0.4)
-    love.graphics.print(game.selection.points, hud.x + 250, hud.y + 76)
+    love.graphics.print(game.selection.points, col3, row2 + 20)
 end
 
 local function drawMessage()

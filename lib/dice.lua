@@ -100,24 +100,37 @@ function Dice.arrangeScatter(tray, roll)
 
     local cx = tray.x + tray.w * 0.5
     local cy = tray.y + tray.h * 0.5
+    local n = #roll
+    local minDist = Dice.SIZE + 6
+    local angleStep = (math.pi * 2) / n
     local radius = math.min(tray.w, tray.h) * 0.38 - Dice.RADIUS
-    local angleStep = (math.pi * 2) / math.max(#roll, 1)
+    if n == 1 then radius = 0 end
 
     for i, die in ipairs(roll) do
-        local angle = angleStep * (i - 1) + (random() - 0.5) * 0.2
-        local dist = radius * (0.7 + 0.3 * random())
+        local angle = angleStep * (i - 1)
+        local dist = radius
         die.x = cx + math.cos(angle) * dist
         die.y = cy + math.sin(angle) * dist
-        die.angle = (random() - 0.5) * 0.35
+        die.angle = (random() - 0.5) * 0.25
         die.isRolling = false
         die.locked = false
     end
 
-    -- Piccola separazione per evitare sovrapposizioni
-    for _ = 1, 24 do
-        for i = 1, #roll do
-            for j = i + 1, #roll do
-                separateDice(roll[i], roll[j])
+    -- Migliora la separazione: se troppo vicini, sposta radialmente
+    for _ = 1, 32 do
+        for i = 1, n do
+            for j = i + 1, n do
+                local dx = roll[i].x - roll[j].x
+                local dy = roll[i].y - roll[j].y
+                local d = math.sqrt(dx * dx + dy * dy)
+                if d < minDist then
+                    local push = (minDist - d) / 2
+                    local nx, ny = dx / (d + 0.01), dy / (d + 0.01)
+                    roll[i].x = roll[i].x + nx * push
+                    roll[i].y = roll[i].y + ny * push
+                    roll[j].x = roll[j].x - nx * push
+                    roll[j].y = roll[j].y - ny * push
+                end
             end
         end
     end
