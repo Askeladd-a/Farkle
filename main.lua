@@ -1,12 +1,12 @@
-local anim8 = require("lib.anim8")
-
-local diceAtlasConfig
-do
-    local ok, atlas = pcall(require, "assets.dice_atlas")
-    if ok then
-        diceAtlasConfig = atlas
-    end
-end
+local anim8 = require("lib.anim8")␊
+␊
+local diceAtlasConfig␊
+do␊
+    local ok, atlas = pcall(require, "asset.dice_atlas")
+    if ok then␊
+        diceAtlasConfig = atlas␊
+    end␊
+end␊
 
 local boardImage
 local boardScale = 1
@@ -18,6 +18,7 @@ local diceImages = {}
 local diceSheet
 local diceFrameSets = {}
 local diceFrameMeta = {}
+local diceFrameImages = {}
 local diceFrameCount = 0
 local scores = {roll = 0, selection = 0}
 local turn = {
@@ -54,6 +55,15 @@ local function moveSelection(delta)
             return
         end
     end
+end
+
+local rollAllDice
+
+local function getAvailableFaceCount()
+    if diceFrameSets.normal and #diceFrameSets.normal > 0 then
+        return math.min(6, #diceFrameSets.normal)
+    end
+    return 6
 end
 
 -- Funzione: rolla solo i dadi non bloccati
@@ -123,7 +133,7 @@ local function generateDicePositions(num)
     -- Tray più grande: due righe in basso
     local trayY1 = gridHeight - 0.6
     local trayY2 = gridHeight - 1.3
-@@ -140,103 +154,206 @@ local function randomGridPosition(idx)
+@@ -140,291 +164,531 @@ local function randomGridPosition(idx)
     end
 end
 
@@ -269,9 +279,8 @@ local function attemptBank()
 end
 
 local function startRoll(die, idx)
-    if diceFrameCount == 0 then return end
     if die.locked then return end
-    local maxFace = math.max(1, math.min(6, diceFrameCount))
+    local maxFace = getAvailableFaceCount()
     die.value = love.math.random(1, maxFace)
     die.startX, die.startY, die.startZ = die.x, die.y, die.z
     die.targetX, die.targetY, die.targetZ = randomGridPosition(idx)
@@ -280,18 +289,21 @@ local function startRoll(die, idx)
     die.spinSpeed = love.math.random(6, 12)
     die.bounce = love.math.random() * 0.25 + 0.1
     die.isRolling = true
-    local frameDuration = love.math.random(0.04, 0.08)
-    local randomFrame = love.math.random(1, diceFrameCount)
-    for _, animation in pairs(die.animations) do
-        animation:setDurations(frameDuration)
-        animation:resume()
-        animation:gotoFrame(randomFrame)
+    if diceFrameCount > 0 then
+        local frameDuration = love.math.random(0.04, 0.08)
+        for _, animation in pairs(die.animations) do
+            local randomFrame = love.math.random(1, math.max(1, #animation.frames))
+            animation:setDurations(frameDuration)
+            animation:resume()
+            animation:gotoFrame(randomFrame)
+        end
     end
+end
 end
 
 local function createDie()
     local die = {
-        value = love.math.random(1, math.max(1, math.min(6, diceFrameCount))),
+        value = love.math.random(1, getAvailableFaceCount()),
         x = love.math.random() * gridWidth,
         y = love.math.random() * gridHeight,
         z = love.math.random() * 0.3,
@@ -306,7 +318,8 @@ local function createDie()
         spent = false,
         screenX = 0,
         screenY = 0,
-        animations = {}
+        animations = {},
+        animationImages = {}
     }
     die.startX, die.startY, die.startZ = die.x, die.y, die.z
     die.targetX, die.targetY, die.targetZ = die.x, die.y, die.z
@@ -316,6 +329,7 @@ local function createDie()
         animation:gotoFrame(die.value)
         animation:pause()
         die.animations[setName] = animation
+        die.animationImages[setName] = diceFrameImages[setName] or diceSheet
     end
     return die
 end
@@ -330,7 +344,8 @@ local function updateLayout()
     boardY = (sh - boardImage:getHeight() * boardScale) * 0.5
 end
 
-@@ -245,72 +362,73 @@ local function drawDie(die)
+local function drawDie(die)
+    local isoX, isoY = isoToScreen(die.x, die.y, die.z)
     local x = boardX + boardImage:getWidth() * boardScale * boardAnchorX + isoX * boardScale
     local y = boardY + boardImage:getHeight() * boardScale * boardAnchorY + isoY * boardScale
 
@@ -363,6 +378,12 @@ end
     love.graphics.setColor(1, 1, 1, dieAlpha)
     local animationKey = (die.locked and hasBorderFrames) and "border" or "normal"
     local animation = die.animations[animationKey] or die.animations.normal
+    local image = die.animationImages[animationKey] or die.animationImages.normal or diceSheet
+    if not animation or not image then
+        love.graphics.pop()
+        love.graphics.setLineWidth(1)
+        return
+    end
     local frameIndex = die.value
     local metaList = diceFrameMeta[animationKey] or diceFrameMeta.normal
     local meta
@@ -371,7 +392,7 @@ end
     end
     local drawWidth = (meta and meta.width) or diceSpriteSize
     local drawHeight = (meta and meta.height) or diceSpriteSize
-    animation:draw(diceSheet, -drawWidth * 0.5, -drawHeight * 0.5, 0, scale, scale)
+    animation:draw(image, -drawWidth * 0.5, -drawHeight * 0.5, 0, scale, scale)
 
     love.graphics.pop()
     love.graphics.setLineWidth(1)
@@ -390,21 +411,149 @@ local function drawHelp()␊
     love.graphics.print(text, x, y)
 end
 
+local function parseTextureAtlasXML(xmlPath, imagePath)
+    if not (love.filesystem.getInfo(xmlPath) and love.filesystem.getInfo(imagePath)) then
+        return nil
+    end
+
+    local contents = love.filesystem.read(xmlPath)
+    if not contents then
+        return nil
+    end
+
+    local image = love.graphics.newImage(imagePath)
+    image:setFilter("linear", "linear")
+    local textureWidth, textureHeight = image:getDimensions()
+
+    local frames = {}
+    for element in contents:gmatch("<SubTexture%s+[^>]-/>") do
+        local name = element:match('name="([^"]+)"')
+        local x = tonumber(element:match('x="([^"]+)"')) or 0
+        local y = tonumber(element:match('y="([^"]+)"')) or 0
+        local width = tonumber(element:match('width="([^"]+)"')) or 0
+        local height = tonumber(element:match('height="([^"]+)"')) or 0
+        if name and width > 0 and height > 0 then
+            local digits = name:match("(%d+)%D*$") or name:match("(%d+)$")
+            local numeric = digits and tonumber(digits) or nil
+            local index = (numeric and numeric > 0) and numeric or (#frames + 1)
+            table.insert(frames, {
+                name = name,
+                index = index,
+                x = x,
+                y = y,
+                width = width,
+                height = height,
+            })
+        end
+    end
+
+    if #frames == 0 then
+        return nil
+    end
+
+    table.sort(frames, function(a, b)
+        if a.index == b.index then
+            return a.name < b.name
+        end
+        return a.index < b.index
+    end)
+
+    local quads, meta = {}, {}
+    for i, frame in ipairs(frames) do
+        quads[i] = love.graphics.newQuad(frame.x, frame.y, frame.width, frame.height, textureWidth, textureHeight)
+        meta[i] = {width = frame.width, height = frame.height}
+    end
+
+    return {
+        image = image,
+        quads = quads,
+        meta = meta,
+    }
+end
+
 local function loadDiceFramesFromAtlas()
+    local function loadFromXml()
+        local normal = parseTextureAtlasXML("asset/diceWhite.xml", "asset/diceWhite.png")
+        if not normal then
+            return false
+        end
+
+        diceFrameSets = {normal = normal.quads}
+        diceFrameMeta = {normal = normal.meta}
+        diceFrameImages = {normal = normal.image}
+        diceSheet = normal.image
+        diceFrameCount = #normal.quads
+        if normal.meta[1] then
+            diceSpriteSize = normal.meta[1].width
+        end
+
+        local border = parseTextureAtlasXML("asset/diceWhite_border.xml", "asset/diceWhite_border.png")
+        if border and #border.quads > 0 then
+            diceFrameSets.border = border.quads
+            diceFrameMeta.border = border.meta
+            diceFrameImages.border = border.image
+        end
+
+        return true
+    end
+
     if not diceAtlasConfig or not diceAtlasConfig.image or not diceAtlasConfig.frames then
-        return false
+        return loadFromXml()
     end
 
-    if not love.filesystem.getInfo(diceAtlasConfig.image) then
-        return false
+    local imagePath = diceAtlasConfig.image
+    if not love.filesystem.getInfo(imagePath) then
+        local normalized = imagePath:gsub("^assets/", "asset/")
+        if love.filesystem.getInfo(normalized) then
+            imagePath = normalized
+        else
+            local altPath = "asset/" .. imagePath
+            if love.filesystem.getInfo(altPath) then
+                imagePath = altPath
+            end
+        end
     end
 
-    diceSheet = love.graphics.newImage(diceAtlasConfig.image)
+    if not love.filesystem.getInfo(imagePath) then
+        return loadFromXml()
+    end
+
+    diceSheet = love.graphics.newImage(imagePath)
     diceSheet:setFilter("linear", "linear")
 
     local textureWidth, textureHeight = diceSheet:getDimensions()
     diceFrameSets = {}
-@@ -346,69 +464,90 @@ local function buildDiceSpriteSheet()
+    diceFrameMeta = {}
+    diceFrameImages = {}
+
+    for setName, frames in pairs(diceAtlasConfig.frames) do
+        diceFrameSets[setName] = {}
+        diceFrameMeta[setName] = {}
+        diceFrameImages[setName] = diceSheet
+        for index, frame in ipairs(frames) do
+            local quad = love.graphics.newQuad(frame.x, frame.y, frame.width, frame.height, textureWidth, textureHeight)
+            diceFrameSets[setName][index] = quad
+            diceFrameMeta[setName][index] = {width = frame.width, height = frame.height}
+        end
+    end
+
+    if diceFrameSets.normal and #diceFrameSets.normal > 0 then
+        diceFrameCount = #diceFrameSets.normal
+        diceSpriteSize = diceFrameMeta.normal[1].width
+        return true
+    end
+
+    return false
+end
+
+local function buildDiceSpriteSheet()
+    if #diceImages == 0 then
+        return
+    end
+
+    local frameWidth = diceImages[1]:getWidth()
+    local frameHeight = diceImages[1]:getHeight()
+    local canvas = love.graphics.newCanvas(frameWidth * #diceImages, frameHeight)
 
     love.graphics.push("all")
     love.graphics.setCanvas(canvas)
@@ -421,6 +570,7 @@ local function loadDiceFramesFromAtlas()
 
     diceFrameSets = {normal = {}}
     diceFrameMeta = {normal = {}}
+    diceFrameImages = {normal = diceSheet}
     local textureWidth, textureHeight = diceSheet:getDimensions()
     for index = 1, #diceImages do
         local quad = love.graphics.newQuad((index - 1) * frameWidth, 0, frameWidth, frameHeight, textureWidth, textureHeight)
@@ -477,10 +627,14 @@ function love.load()
     boardImage = love.graphics.newImage("asset/board.png")
     boardImage:setFilter("linear", "linear")
 
+    diceImages = {}
     for value = 1, 6 do
-        local image = love.graphics.newImage(string.format("asset/die%d.png", value))
-        image:setFilter("linear", "linear")
-        diceImages[value] = image
+        local path = string.format("asset/die%d.png", value)
+        if love.filesystem.getInfo(path) then
+            local image = love.graphics.newImage(path)
+            image:setFilter("linear", "linear")
+            table.insert(diceImages, image)
+        end
     end
 
     if not loadDiceFramesFromAtlas() then
@@ -495,7 +649,23 @@ function love.load()
     fonts.score = love.graphics.newFont(28)
     love.graphics.setFont(fonts.help)
 
-@@ -450,95 +589,96 @@ local function updateDie(die, dt)
+    for i = 1, numDice do
+        table.insert(dice, createDie())
+    end
+
+    updateLayout()
+    refreshScores()
+end
+
+function love.resize()
+    updateLayout()
+end
+
+local function updateDie(die, dt)
+    for _, animation in pairs(die.animations) do
+        animation:update(dt)
+    end
+@@ -450,95 +714,96 @@ local function updateDie(die, dt)
     end
 end
 
@@ -521,7 +691,7 @@ function love.draw()
     drawScore()
 end
 
-local function rollAllDice()
+function rollAllDice()
     dicePositions = generateDicePositions(#dice)
     turn.bust = false
     for _, die in ipairs(dice) do
