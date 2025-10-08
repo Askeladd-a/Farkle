@@ -110,18 +110,58 @@ function Dice.arrangeScatter(tray, roll, opts)
     local cx = tray.x + tray.w * 0.5
     local cy = tray.y + tray.h * 0.5
     local n = #roll
-    local minDist = Dice.SIZE + 6
-    local angleStep = (math.pi * 2) / n
-    local radius = math.min(tray.w, tray.h) * 0.38 - Dice.RADIUS
-    if n == 1 then radius = 0 end
-
-    -- Disposizione circolare iniziale
+    local minDist = Dice.SIZE + 4  -- Ridotto per permettere più vicinanza
+    local maxRadius = math.min(tray.w, tray.h) * 0.35 - Dice.RADIUS
+    
+    -- Disposizione più realistica e casuale
     for i, die in ipairs(roll) do
-        local angle = angleStep * (i - 1)
-        local dist = radius
-        die.x = cx + math.cos(angle) * dist
-        die.y = cy + math.sin(angle) * dist
-        die.angle = (random() - 0.5) * 0.25
+        local attempts = 0
+        local placed = false
+        
+        -- Prova a posizionare il dado in modo casuale
+        while not placed and attempts < 50 do
+            -- Posizione casuale con distribuzione più naturale
+            local angle = random() * math.pi * 2
+            local radius = random() * maxRadius * (0.3 + random() * 0.7)  -- Più concentrato al centro
+            
+            -- Aggiungi un po' di rumore per rendere più naturale
+            local noiseX = (random() - 0.5) * Dice.SIZE * 0.3
+            local noiseY = (random() - 0.5) * Dice.SIZE * 0.3
+            
+            die.x = cx + math.cos(angle) * radius + noiseX
+            die.y = cy + math.sin(angle) * radius + noiseY
+            
+            -- Angolo più casuale per un aspetto più naturale
+            die.angle = (random() - 0.5) * math.pi * 0.8  -- Fino a 72 gradi di rotazione
+            
+            -- Verifica che non si sovrapponga troppo con altri dadi
+            local tooClose = false
+            for j = 1, i - 1 do
+                local dx = die.x - roll[j].x
+                local dy = die.y - roll[j].y
+                local dist = math.sqrt(dx * dx + dy * dy)
+                if dist < minDist then
+                    tooClose = true
+                    break
+                end
+            end
+            
+            if not tooClose then
+                placed = true
+            end
+            
+            attempts = attempts + 1
+        end
+        
+        -- Se non è riuscito a posizionare, usa una posizione di fallback
+        if not placed then
+            local fallbackAngle = (i - 1) * (math.pi * 2 / n)
+            local fallbackRadius = maxRadius * 0.6
+            die.x = cx + math.cos(fallbackAngle) * fallbackRadius
+            die.y = cy + math.sin(fallbackAngle) * fallbackRadius
+            die.angle = (random() - 0.5) * 0.3
+        end
+        
         if not opts.keepRollingState then
             die.isRolling = false
         end
@@ -130,15 +170,15 @@ function Dice.arrangeScatter(tray, roll, opts)
         end
     end
 
-    -- Iterazioni di separazione per evitare sovrapposizioni
-    for _ = 1, 32 do
+    -- Iterazioni di separazione più delicate per mantenere l'aspetto naturale
+    for _ = 1, 15 do  -- Ridotto da 32 per mantenere più casualità
         for i = 1, n do
             for j = i + 1, n do
                 local dx = roll[i].x - roll[j].x
                 local dy = roll[i].y - roll[j].y
                 local d = math.sqrt(dx * dx + dy * dy)
                 if d < minDist then
-                    local push = (minDist - d) / 2
+                    local push = (minDist - d) * 0.3  -- Ridotto da 0.5 per movimento più delicato
                     local nx, ny = dx / (d + 0.01), dy / (d + 0.01)
                     roll[i].x = roll[i].x + nx * push
                     roll[i].y = roll[i].y + ny * push
@@ -147,6 +187,11 @@ function Dice.arrangeScatter(tray, roll, opts)
                 end
             end
         end
+    end
+    
+    -- Assicurati che tutti i dadi siano dentro il tray
+    for _, die in ipairs(roll) do
+        clampDie(die, tray)
     end
 end
 

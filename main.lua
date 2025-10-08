@@ -10,7 +10,7 @@ local game = {
     state = "menu",
     players = {
         {id = "player", name = "You", banked = 0, isAI = false},
-        {id = "ai", name = "Neon Bot", banked = 0, isAI = true},
+        {id = "ai", name = "Baron von Farkle", banked = 0, isAI = true},
     },
     active = 1,
     diceLeft = 6,
@@ -95,6 +95,9 @@ end
 local function resetSelection()
     game.selection = {points = 0, dice = 0, valid = false}
 end
+
+-- Forward declaration
+local startRoll
 
 local function setupStripes(height)
     backgroundStripes = {}
@@ -406,7 +409,7 @@ local function endTurn(msg)
         game.active = (game.active % #game.players) + 1
         local nextPlayer = getActivePlayer()
         if nextPlayer.isAI then
-            nextPrompt = "Neon Bot is thinking..."
+            nextPrompt = "Baron von Farkle is thinking..."
             aiTurn = true
         else
             nextPrompt = "Click Roll Dice to start your turn."
@@ -433,7 +436,7 @@ end
 local function handleBust()
     local current = getActivePlayer()
     if current.isAI then
-        endTurn("Bust! Neon Bot loses the round.")
+        endTurn("Bust! Baron von Farkle loses the round.")
     else
         endTurn("Bust! You lose the round points.")
     end
@@ -484,7 +487,7 @@ local function consumeSelection()
         game.message = "Hot dice! Roll all six again."
     else
         if getActivePlayer().isAI then
-            game.message = string.format("Neon Bot keeps %d points.", game.selection.points)
+            game.message = string.format("Baron von Farkle keeps %d points.", game.selection.points)
         else
             game.message = string.format("Saved %d points. %d dice remain.", game.selection.points, game.diceLeft)
         end
@@ -495,7 +498,7 @@ local function consumeSelection()
     return true, #removed
 end
 
-local function startRoll()
+startRoll = function()
     if game.rolling or game.diceLeft <= 0 or game.winner then
         return false
     end
@@ -557,7 +560,7 @@ local function bankRound()
         game.message = string.format("%s wins with %d points!", player.name, player.banked)
     else
         if player.isAI then
-            game.message = string.format("Neon Bot banks %d points.", game.roundScore)
+            game.message = string.format("Baron von Farkle banks %d points.", game.roundScore)
         else
             game.message = string.format("You banked %d points.", game.roundScore)
         end
@@ -1027,7 +1030,7 @@ local function updateGame(dt)
             else
                 local player = getActivePlayer()
                 if player.isAI then
-                    game.message = "Neon Bot is choosing dice."
+                    game.message = "Baron von Farkle is choosing dice."
                 else
                     game.message = "Select scoring dice, then Roll or Bank."
                 end

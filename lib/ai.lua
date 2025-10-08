@@ -62,22 +62,34 @@ local function shouldBank(potential, remainingDice, currentTemp, playerBanked, w
         return true
     end
 
+    -- Soglie più aggressive per Baron von Farkle
     local thresholds = {
-        [0] = 2600,
-        [1] = 650,
-        [2] = 900,
-        [3] = 1150,
-        [4] = 1400,
-        [5] = 1700,
-        [6] = 1900,
+        [0] = 2000,  -- Ridotto da 2600
+        [1] = 400,   -- Ridotto da 650
+        [2] = 500,   -- Ridotto da 900
+        [3] = 600,   -- Ridotto da 1150
+        [4] = 700,   -- Ridotto da 1400
+        [5] = 800,   -- Ridotto da 1700
+        [6] = 900,   -- Ridotto da 1900
     }
-    local threshold = thresholds[remainingDice] or 1500
+    local threshold = thresholds[remainingDice] or 1000  -- Ridotto da 1500
 
     if potential >= threshold then
         return true
     end
 
-    if potential >= 1200 and currentTemp >= 900 then
+    -- Banking più aggressivo con meno punti
+    if potential >= 600 and currentTemp >= 400 then  -- Ridotto da 1200/900
+        return true
+    end
+    
+    -- Banking molto aggressivo se siamo vicini alla vittoria
+    if playerBanked >= winningScore * 0.8 and potential >= 300 then
+        return true
+    end
+    
+    -- Banking se l'avversario è molto avanti
+    if currentTemp >= 500 and potential >= 400 then
         return true
     end
 
