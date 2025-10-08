@@ -25,6 +25,7 @@ local game = {
     winner = nil,
     buttons = {},
     showGuide = false,
+    buttonsNeedRefresh = true, -- Flag per ottimizzare rebuild pulsanti
 }
 
 game.rolls.player = {}
@@ -33,7 +34,6 @@ game.kept.player = {}
 game.kept.ai = {}
 
 game.ai = AIController.new()
-
 game.selectionImages = {}
 
 game.layout = {
@@ -105,6 +105,7 @@ local function setupStripes(height)
     end
 end
 
+-- === LAYOUT COMPUTATION ===
 local function computeHudSpacing()
     local smallHeight = fonts.small and fonts.small:getHeight() or 22
     local titleHeight = fonts.h2 and fonts.h2:getHeight() or 48
@@ -130,6 +131,7 @@ local function computeHudSpacing()
 end
 
 local function setupLayout(width, height)
+    -- Margini base
     local marginY = math.max(32, height * 0.06)
     if marginY * 2 >= height then
         marginY = math.max(20, height / 2 - 8)
@@ -140,18 +142,21 @@ local function setupLayout(width, height)
     end
     local hudSpacing = computeHudSpacing()
 
+    -- Parametri pulsanti
     local buttonHeight = 56
     local buttonGap = 18
     local panelPadding = 16
     local buttonCount = #BUTTON_LABELS
     local buttonColumnHeight = buttonHeight * buttonCount + buttonGap * (buttonCount - 1)
 
+    -- Layout detection
     local baseButtonWidth = math.min(280, math.max(200, width * 0.18))
     local sideSpacing = math.max(24, width * 0.03)
     local boardAreaWidth = width - marginX * 2 - baseButtonWidth - sideSpacing
     local minBoardAreaWidth = 520
     local stackedLayout = boardAreaWidth < minBoardAreaWidth
 
+    -- === HUD SETUP ===
     local hudWidth
     local hudX
     local hudY = marginY
@@ -172,8 +177,8 @@ local function setupLayout(width, height)
     }
     game.layout.hudSpacing = hudSpacing
 
+    -- === BOARD SETUP ===
     local hudToBoardSpacing = math.max(stackedLayout and 28 or 40, height * 0.04)
-
     local boardWidthArea = stackedLayout and (width - marginX * 2) or boardAreaWidth
     local messageMinHeight = math.max(110, (fonts.body and fonts.body:getHeight() or 24) * 3)
     local buttonPanelWidth = stackedLayout and math.min(360, width - marginX * 2) or baseButtonWidth
@@ -205,6 +210,7 @@ local function setupLayout(width, height)
     game.layout.hingeY = boardY + boardHeight * 0.68
     game.layout.mode = stackedLayout and "stacked" or "wide"
 
+    -- === TRAYS SETUP ===
     local desiredTrayWidth = stackedLayout and boardWidth * 0.66 or boardWidth * 0.72
     local maxTrayWidth = math.max(boardWidth - 2 * (Dice.SIZE + 40), boardWidth * 0.5)
     local trayWidth = math.min(desiredTrayWidth, maxTrayWidth)
@@ -227,6 +233,7 @@ local function setupLayout(width, height)
         h = trayHeight,
     }
 
+    -- === KEPT DICE COLUMNS ===
     local useStackedKept = stackedLayout and sideSpace < Dice.SIZE + 20
     if useStackedKept then
         local keptHeight = math.max(Dice.SIZE + 16, trayHeight * 0.75)
@@ -275,6 +282,7 @@ local function setupLayout(width, height)
         }
     end
 
+    -- === MESSAGE & BUTTONS PANEL ===
     local messageWidth = stackedLayout and (width - marginX * 2) or boardWidth
     local messageX = stackedLayout and marginX or boardX
     local messageYBase = boardY + boardHeight + messageSpacing
@@ -341,6 +349,8 @@ local function setupLayout(width, height)
         h = math.max(60, messageHeight),
         padding = math.max(18, (fonts.body and fonts.body:getHeight() or 24) * 0.75),
     }
+    
+    game.buttonsNeedRefresh = true
 end
 
 local function refreshFonts(width, height)
@@ -352,6 +362,7 @@ local function refreshFonts(width, height)
     fonts.tiny = love.graphics.newFont(math.max(12, math.floor(base * 0.018)))
 end
 
+-- === GAME STATE MANAGEMENT ===
 local function resetTurn(newMessage)
     resetSelection()
     game.roundScore = 0
@@ -365,6 +376,7 @@ local function resetTurn(newMessage)
     game.winner = nil
     game.message = newMessage or "Click Roll Dice to begin."
     game.ai:reset()
+    game.buttonsNeedRefresh = true
 end
 
 local function startNewGame()
@@ -375,6 +387,7 @@ local function startNewGame()
     resetTurn("Click Roll Dice to begin.")
     game.state = "playing"
     game.winner = nil
+    game.buttonsNeedRefresh = true
 end
 
 local function endTurn(msg)
@@ -410,7 +423,8 @@ local function endTurn(msg)
         game.message = nextPrompt or ""
     end
 
-    -- Se è il turno dell'AI, fai partire subito il roll
+    game.buttonsNeedRefresh = true
+
     if aiTurn then
         startRoll()
     end
@@ -427,6 +441,8 @@ end
 
 local function refreshSelection()
     local roll = currentRoll()
+    if not roll then return end
+    
     local values = {}
     for _, die in ipairs(roll) do
         if die.locked and not die.isRolling then
@@ -437,6 +453,7 @@ local function refreshSelection()
     game.selection.points = result.points or 0
     game.selection.valid = result.valid or false
     game.selection.dice = #values
+    game.buttonsNeedRefresh = true
 end
 
 local function consumeSelection()
@@ -474,6 +491,7 @@ local function consumeSelection()
     end
 
     resetSelection()
+    game.buttonsNeedRefresh = true
     return true, #removed
 end
 
@@ -485,7 +503,6 @@ local function startRoll()
     local tray = game.layout.trays[getActivePlayer().id]
     local roll = currentRoll()
 
-    -- Se non ci sono dadi, è l'inizio del turno: crea 6 dadi
     if #roll == 0 then
         for i = 1, game.diceLeft do
             local die = Dice.newDie(tray)
@@ -495,7 +512,6 @@ local function startRoll()
             table_insert(roll, die)
         end
     else
-        -- Ri-rolla solo i dadi non tenuti
         for _, die in ipairs(roll) do
             if not die.locked then
                 die.isRolling = true
@@ -507,6 +523,7 @@ local function startRoll()
     game.rolling = true
     game.rollTimer = 0
     resetSelection()
+    game.buttonsNeedRefresh = true
     return true
 end
 
@@ -565,6 +582,7 @@ local function attemptBank()
     return false
 end
 
+-- === ASSET LOADING ===
 local function decodeCursor()
     local imageData = EmbeddedAssets.buildCursorImageData()
     if imageData then
@@ -580,6 +598,7 @@ local function loadSelectionImages()
     game.selectionImages = EmbeddedAssets.buildLightImages() or {}
 end
 
+-- === PARTICLE EFFECTS ===
 local function ensureParticles(die)
     if #game.selectionImages == 0 then
         return
@@ -627,6 +646,7 @@ local function drawParticles(die)
     love.graphics.setBlendMode("alpha")
 end
 
+-- === RENDERING ===
 local function drawBackground()
     local width, height = love.graphics.getDimensions()
     love.graphics.clear(0.07, 0.06, 0.08)
@@ -671,13 +691,11 @@ local function drawHUD()
     love.graphics.setLineWidth(2)
     love.graphics.rectangle("line", hud.x + 4, hud.y + 4, hud.w - 8, hud.h - 8, 14, 14)
 
-    -- Titolo
     love.graphics.setFont(fonts.h2)
     love.graphics.setColor(0.98, 0.95, 0.85)
     local y = hud.y + spacing.paddingTop
     love.graphics.printf("SCOREBOARD", hud.x, y, hud.w, "center")
 
-    -- Header
     y = y + spacing.titleHeight + spacing.headerGap
     local headerY = y
     local paddingX = math.max(18, hud.w * 0.06)
@@ -701,7 +719,6 @@ local function drawHUD()
     love.graphics.printf("Round", colX[3], headerY, colWidths[3], "right")
     love.graphics.printf("Selected", colX[4], headerY, colWidths[4], "right")
 
-    -- Riga 1: Player
     local headerBottom = headerY + spacing.headerHeight
     local rowY = headerBottom + spacing.rowGap
     love.graphics.setColor(0.7, 0.85, 1.0)
@@ -713,24 +730,20 @@ local function drawHUD()
     love.graphics.setColor(0.9, 0.75, 0.4)
     love.graphics.printf(tostring(game.selection.points), colX[4], rowY, colWidths[4], "right")
 
-    -- Riga 2: AI
     rowY = rowY + spacing.rowHeight + spacing.rowGap
     love.graphics.setColor(1.0, 0.6, 0.55)
     love.graphics.print(game.players[2].name, colX[1], rowY)
     love.graphics.setColor(1, 1, 1)
     love.graphics.printf(tostring(game.players[2].banked), colX[2], rowY, colWidths[2], "right")
-    -- Round e Selected per AI lasciati vuoti
 
     local row2Bottom = rowY + spacing.rowHeight
 
-    -- Riga 3: Goal
     rowY = rowY + spacing.rowHeight + spacing.rowGap
     love.graphics.setColor(0.95, 0.88, 0.45)
     love.graphics.print("Goal", colX[1], rowY)
     love.graphics.setColor(1, 1, 1)
     love.graphics.printf(tostring(winningScore), colX[2], rowY, colWidths[2], "right")
 
-    -- Separatore
     love.graphics.setColor(0.35, 0.27, 0.18, 0.7)
     love.graphics.setLineWidth(1)
     local line1Y = headerBottom + spacing.rowGap * 0.5
@@ -795,6 +808,7 @@ local function executeButton(label)
     elseif label == "Main Menu" then
         game.state = "menu"
     end
+    game.buttonsNeedRefresh = true
 end
 
 local function rebuildButtons()
@@ -816,7 +830,12 @@ local function rebuildButtons()
 end
 
 local function drawButtons()
-    rebuildButtons()
+    -- OTTIMIZZAZIONE: rebuild solo quando necessario
+    if game.buttonsNeedRefresh then
+        rebuildButtons()
+        game.buttonsNeedRefresh = false
+    end
+    
     local layout = game.layout.buttons
     if layout.panel then
         love.graphics.setColor(0.12, 0.09, 0.06, 0.9)
@@ -905,6 +924,7 @@ local function drawDice()
     end
 end
 
+-- === AI CONTEXT INTERFACE ===
 local aiContext = {}
 
 function aiContext.isActive()
@@ -981,6 +1001,7 @@ function aiContext.refreshScores()
     refreshSelection()
 end
 
+-- === GAME UPDATE LOOP ===
 local function updateGame(dt)
     if game.state ~= "playing" then
         return
@@ -1011,6 +1032,7 @@ local function updateGame(dt)
                     game.message = "Select scoring dice, then Roll or Bank."
                 end
             end
+            game.buttonsNeedRefresh = true
         end
     else
         for _, die in ipairs(currentRoll()) do
@@ -1023,6 +1045,7 @@ local function updateGame(dt)
     end
 end
 
+-- === MENU RENDERING ===
 local function drawMenu()
     local width, height = love.graphics.getDimensions()
     love.graphics.setFont(fonts.title)
@@ -1035,11 +1058,7 @@ local function drawMenu()
             game.showGuide = not game.showGuide
         end},
         {label = "Quit", action = function()
-            if love.system and love.system.getOS() == "Windows" then
-                love.event.quit()
-            else
-                love.event.quit()
-            end
+            love.event.quit()
         end},
     }
 
@@ -1065,6 +1084,7 @@ local function drawMenu()
     end
 end
 
+-- === LOVE2D CALLBACKS ===
 function love.load()
     love.math.setRandomSeed(os.time())
     local width, height = love.graphics.getDimensions()

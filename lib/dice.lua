@@ -2,8 +2,11 @@ local Dice = {}
 
 local random = love.math.random
 
+-- === COSTANTI ===
 Dice.SIZE = 48
 Dice.RADIUS = Dice.SIZE * 0.5
+local COLLISION_THRESHOLD = Dice.SIZE * 0.92  -- Soglia per separazione dadi
+local PIP_OFFSET = 6  -- Offset per i pip dal bordo
 
 local function randomVelocity(range)
     return (random() - 0.5) * range
@@ -53,13 +56,14 @@ local function separateDice(a, b)
     local dx = b.x - a.x
     local dy = b.y - a.y
     local dist = math.sqrt(dx * dx + dy * dy)
+    
     if dist == 0 then
         dx, dy = random() - 0.5, random() - 0.5
         dist = math.sqrt(dx * dx + dy * dy)
     end
-    local minDist = Dice.SIZE * 0.92
-    if dist < minDist then
-        local push = (minDist - dist) * 0.5
+    
+    if dist < COLLISION_THRESHOLD then
+        local push = (COLLISION_THRESHOLD - dist) * 0.5
         local nx = dx / dist
         local ny = dy / dist
         a.x = a.x - nx * push
@@ -71,16 +75,19 @@ end
 
 function Dice.updateRoll(roll, tray, dt)
     for _, die in ipairs(roll) do
+        -- Aggiorna la faccia del dado
         die.faceTimer = die.faceTimer - dt
         if die.faceTimer <= 0 then
             die.value = random(1, 6)
             die.faceTimer = 0.08
         end
 
+        -- Fisica di base
         die.x = die.x + die.vx * dt
         die.y = die.y + die.vy * dt
         die.angle = die.angle + die.av * dt
 
+        -- Frizione
         die.vx = die.vx * 0.985
         die.vy = die.vy * 0.985
         die.av = die.av * 0.97
@@ -88,6 +95,7 @@ function Dice.updateRoll(roll, tray, dt)
         clampDie(die, tray)
     end
 
+    -- Collision detection tra dadi
     for i = 1, #roll do
         for j = i + 1, #roll do
             separateDice(roll[i], roll[j])
@@ -107,6 +115,7 @@ function Dice.arrangeScatter(tray, roll, opts)
     local radius = math.min(tray.w, tray.h) * 0.38 - Dice.RADIUS
     if n == 1 then radius = 0 end
 
+    -- Disposizione circolare iniziale
     for i, die in ipairs(roll) do
         local angle = angleStep * (i - 1)
         local dist = radius
@@ -121,7 +130,7 @@ function Dice.arrangeScatter(tray, roll, opts)
         end
     end
 
-    -- Migliora la separazione: se troppo vicini, sposta radialmente
+    -- Iterazioni di separazione per evitare sovrapposizioni
     for _ = 1, 32 do
         for i = 1, n do
             for j = i + 1, n do
@@ -146,7 +155,8 @@ local function drawPip(x, y, r)
 end
 
 local function drawPips(die)
-    local r = Dice.RADIUS - 6
+    local r = Dice.RADIUS - PIP_OFFSET
+    -- Configurazione posizioni pip per ogni faccia
     local positions = {
         [1] = {{0, 0}},
         [2] = {{-0.6, -0.6}, {0.6, 0.6}},
@@ -162,6 +172,7 @@ local function drawPips(die)
 end
 
 function Dice.drawDie(die)
+    -- Ombra
     love.graphics.setColor(0, 0, 0, 0.35)
     love.graphics.ellipse("fill", die.x + 8, die.y + Dice.RADIUS + 6, Dice.RADIUS, Dice.RADIUS * 0.55)
 
@@ -173,23 +184,29 @@ function Dice.drawDie(die)
     local h = Dice.SIZE
     local round = 10
 
+    -- Corpo del dado
     love.graphics.setColor(0.96, 0.93, 0.82)
     love.graphics.rectangle("fill", -w / 2, -h / 2, w, h, round, round)
 
+    -- Highlight superiore
     love.graphics.setColor(1, 1, 1, 0.15)
     love.graphics.polygon("fill", -w / 2, -h / 2, w / 2, -h / 2, w / 2 - 6, -h / 2 + 6, -w / 2 + 6, -h / 2 + 6)
 
+    -- Ombra inferiore
     love.graphics.setColor(0, 0, 0, 0.18)
     love.graphics.polygon("fill", -w / 2, h / 2, w / 2, h / 2, w / 2 - 6, h / 2 - 6, -w / 2 + 6, h / 2 - 6)
 
+    -- Pip
     drawPips(die)
 
+    -- Bordo
     love.graphics.setColor(0.25, 0.22, 0.18)
     love.graphics.setLineWidth(2)
     love.graphics.rectangle("line", -w / 2, -h / 2, w, h, round, round)
 
     love.graphics.pop()
 
+    -- Indicatore selezione
     if die.locked then
         love.graphics.setColor(0.95, 0.82, 0.35, 0.85)
         love.graphics.setLineWidth(3)
@@ -208,6 +225,7 @@ function Dice.recenterDice(roll, oldTray, newTray)
     local marginY = math.min(0.45, Dice.RADIUS / newHeight)
 
     for _, die in ipairs(roll) do
+        -- Calcola posizione relativa nel vecchio tray
         local relX = 0.5
         local relY = 0.5
         if oldTray and oldTray.w and oldTray.w > 0 then
@@ -216,9 +234,12 @@ function Dice.recenterDice(roll, oldTray, newTray)
         if oldTray and oldTray.h and oldTray.h > 0 then
             relY = (die.y - oldTray.y) / oldTray.h
         end
+        
+        -- Applica margini di sicurezza
         relX = math.max(marginX, math.min(1 - marginX, relX))
         relY = math.max(marginY, math.min(1 - marginY, relY))
 
+        -- Posiziona nel nuovo tray
         die.x = newTray.x + relX * newTray.w
         die.y = newTray.y + relY * newTray.h
         clampDie(die, newTray)
