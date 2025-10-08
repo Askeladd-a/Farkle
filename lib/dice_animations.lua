@@ -37,46 +37,68 @@ function DiceAnimations.init()
     end
     
     diceGrid = anim8.newGrid(frameWidth, frameHeight, diceImage:getWidth(), diceImage:getHeight())
+    -- Debug: mostra le dimensioni della griglia calcolata
+    print(string.format("[DiceAnimations] Grid created: frame %dx%d, image %dx%d -> grid %dx%d",
+        frameWidth, frameHeight, diceImage:getWidth(), diceImage:getHeight(), diceGrid.width, diceGrid.height))
     
-    -- Determina il layout dello spritesheet
+    -- Determina il layout dello spritesheet in modo generico (colonne x righe)
     local imageWidth = diceImage:getWidth()
     local imageHeight = diceImage:getHeight()
-    local isHorizontalLayout = imageWidth > imageHeight * 2  -- Se è molto più largo che alto
-    
-    -- Crea le animazioni con protezione dagli errori
+    local cols = diceGrid.width or math.floor(imageWidth / frameWidth)
+    local rows = diceGrid.height or math.floor(imageHeight / frameHeight)
+
+    print(string.format("[DiceAnimations] Image size %dx%d -> cols=%d rows=%d (frame %dx%d)", imageWidth, imageHeight, cols, rows, frameWidth, frameHeight))
+
+    -- Crea le animazioni usando i primi 6 frame in ordine di lettura (left->right, top->bottom)
     local success, result = pcall(function()
-        if isHorizontalLayout then
-            -- Layout orizzontale 1x6 (384x64)
-            return {
-                rolling = anim8.newAnimation(diceGrid('1-6', 1), 0.1),
-                face1 = anim8.newAnimation(diceGrid(1, 1), 1),
-                face2 = anim8.newAnimation(diceGrid(2, 1), 1),
-                face3 = anim8.newAnimation(diceGrid(3, 1), 1),
-                face4 = anim8.newAnimation(diceGrid(4, 1), 1),
-                face5 = anim8.newAnimation(diceGrid(5, 1), 1),
-                face6 = anim8.newAnimation(diceGrid(6, 1), 1),
-            }
-        else
-            -- Layout griglia 2x3 (192x128)
-            -- Mappa le posizioni della griglia ai valori dei dadi
-            -- Il tuo spritesheet: (1,1)=6, (2,1)=3, (1,2)=5, (2,2)=1, (1,3)=2, (2,3)=4
-            return {
-                -- Animazione di lancio usando tutte le posizioni disponibili
-                rolling = anim8.newAnimation(diceGrid('1-2', '1-3'), 0.1),
-                
-                -- Mappa i valori dei dadi alle posizioni nella griglia
-                face1 = anim8.newAnimation(diceGrid(2, 2), 1),  -- Posizione (2,2) = 1 pip
-                face2 = anim8.newAnimation(diceGrid(1, 3), 1),  -- Posizione (1,3) = 2 pip
-                face3 = anim8.newAnimation(diceGrid(2, 1), 1),  -- Posizione (2,1) = 3 pip
-                face4 = anim8.newAnimation(diceGrid(2, 3), 1),  -- Posizione (2,3) = 4 pip
-                face5 = anim8.newAnimation(diceGrid(1, 2), 1),  -- Posizione (1,2) = 5 pip
-                face6 = anim8.newAnimation(diceGrid(1, 1), 1),  -- Posizione (1,1) = 6 pip
-            }
+        if cols * rows < 6 then
+            error(string.format("Spritesheet troppo piccolo: serve almeno 6 frame (cols=%d rows=%d)", cols, rows))
         end
+
+        -- Preleva i primi 6 quad dalla griglia
+        local frames = {}
+        for i = 1, 6 do
+            local x = ((i - 1) % cols) + 1
+            local y = math.floor((i - 1) / cols) + 1
+            local quadTable = diceGrid(x, y) -- ritorna una tabella con 1 elemento
+            frames[#frames + 1] = quadTable[1]
+        end
+
+        -- Crea una animazione rolling usando i primi 6 frame
+        local rollingAnim = anim8.newAnimation(frames, 0.1)
+
+        -- Crea animazioni faccia singola (frame statico) mappando face1..face6 ai frame 1..6
+        return {
+            rolling = rollingAnim,
+            face1 = anim8.newAnimation({frames[1]}, 1),
+            face2 = anim8.newAnimation({frames[2]}, 1),
+            face3 = anim8.newAnimation({frames[3]}, 1),
+            face4 = anim8.newAnimation({frames[4]}, 1),
+            face5 = anim8.newAnimation({frames[5]}, 1),
+            face6 = anim8.newAnimation({frames[6]}, 1),
+        }
     end)
     
     if success then
-        animations = result
+        animations = result or {}
+        -- Se per qualche motivo non esiste l'animazione di rolling, creala come fallback
+        if not animations.rolling then
+            local ok, anim = pcall(function()
+                -- Prova prioritariamente una riga orizzontale, poi la griglia 2x3
+                if diceGrid.width >= 6 then
+                    return anim8.newAnimation(diceGrid('1-6', 1), 0.1)
+                else
+                    return anim8.newAnimation(diceGrid('1-2', '1-3'), 0.1)
+                end
+            end)
+            if ok and anim then
+                animations.rolling = anim
+                print("[DiceAnimations] Rolling animation fallback creata")
+            else
+                print("[DiceAnimations] Impossibile creare rolling animation di fallback: " .. tostring(anim))
+            end
+        end
+
         print("Animazioni create con successo - Layout: " .. (isHorizontalLayout and "Orizzontale 1x6" or "Griglia 2x3"))
         local animNames = {}
         for name, _ in pairs(animations) do
