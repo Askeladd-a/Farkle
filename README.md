@@ -1,51 +1,56 @@
-# Farkle Project Overview
+# Farkle Prototype
 
-Questo repository raccoglie idee e suggerimenti per creare un piccolo videogioco ispirato a Balatro ma basato sul gioco di dadi Farkle, utilizzando il framework [LÖVE](https://love2d.org/).
+Questo repository contiene un prototipo giocabile di Farkle sviluppato con [LÖVE](https://love2d.org/), pensato come punto di
+partenza per un progetto più ampio ispirato all'estetica di Balatro.
 
-## È un progetto difficile?
-Creare il tuo primo videogioco da zero senza esperienza di programmazione è una sfida, ma non è impossibile. Le difficoltà principali includono:
+## Come provarlo
+1. Installa LÖVE 11.5 (o versione compatibile) dal sito ufficiale.
+   - **Windows**: scarica l'eseguibile `.exe` e installalo; aggiungi eventualmente il percorso di LÖVE alle variabili d'ambiente per richiamare `love` dal terminale.
+   - **macOS**: trascina LÖVE nella cartella Applicazioni, quindi esegui `ln -s /Applications/love.app/Contents/MacOS/love /usr/local/bin/love` per avere il comando `love` disponibile dal terminale.
+   - **Linux**: installa il pacchetto fornito dalla tua distribuzione (es. `sudo pacman -S love`, `sudo apt install love`).
+2. Verifica l'installazione aprendo un terminale ed eseguendo `love --version`: dovresti vedere la versione installata e altre informazioni di build.
+3. Scarica o clona questo repository.
+4. Avvia il gioco con `love .` eseguito nella cartella del progetto.
+5. Premi **SPACE** o fai clic con il tasto destro del mouse per lanciare i sei dadi e vederli disporsi in proiezione isometrica sulla plancia in legno allegata.
+6. Clicca con il tasto sinistro su un dado per "bloccarlo": se è disponibile lo sprite con bordo, il dado userà automaticamente la versione incorniciata del foglio `sheet.png`; in caso contrario rimarrà illuminato dal glow giallo e non verrà rilanciato.
+7. Il riquadro in alto a sinistra mostra il punteggio totale del roll corrente e quello accumulato dai dadi bloccati.
 
-- **Imparare Lua e LÖVE**: dovrai acquisire dimestichezza con la sintassi del linguaggio Lua e con l'API di LÖVE per gestire grafica, input e audio.
-- **Gestione della fisica dei dadi**: ottenere un effetto "roll" credibile richiede animazioni o simulazioni semplificate. In isometria servirà calcolare posizioni, livelli di profondità e possibili sovrapposizioni.
-- **Logica del punteggio Farkle**: il gioco richiede il riconoscimento delle combinazioni di dadi e l'assegnazione dei punteggi (inclusi elementi speciali come il "Devil's Head").
-- **Interfaccia e feedback**: bisogna curare layout, pulsanti (lancio, banca, mantieni dadi), e fornire feedback visivo/auditivo chiaro al giocatore.
+### Test rapido senza terminale
+Se preferisci non usare la riga di comando, puoi trascinare la cartella del progetto (o un archivio `.zip` del repository) direttamente sull'eseguibile di LÖVE: l'applicazione si avvierà caricando il prototipo.
 
-## Approccio consigliato
+L'immagine della plancia (`assets/board.png`) e le facce dei dadi (`assets/die1.png` … `assets/die6.png`) corrispondono agli asset forniti dall'utente. Se aggiungi il foglio `assets/sheet.png` allegato con lo stesso nome, il gioco userà automaticamente le coordinate descritte in `assets/dice_atlas.lua` per leggere le animazioni dal texture atlas (inclusa la variante con bordo per i dadi bloccati). In assenza del foglio, il codice ricompone dinamicamente uno sprite sheet temporaneo partendo dalle sei facce individuali.
+
+## Struttura del codice
+- `main.lua`: gestisce caricamento risorse, animazioni dei dadi tramite [anim8](https://github.com/kikito/anim8), input, rendering e calcolo rapido del punteggio roll/hold.
+- `conf.lua`: configura la finestra del progetto LÖVE (risoluzione, titolo, identità).
+- `lib/anim8.lua`: versione vendorizzata della libreria anim8 (MIT) per semplificare la gestione di animazioni basate su sprite sheet.
+- `assets/board.png`: plancia in legno fornita dall'utente.
+- `assets/die1.png` … `assets/die6.png`: facce dei dadi stilizzate fornite dall'utente.
+- `assets/sheet.png` (opzionale): texture atlas dei dadi fornito dall'utente.
+- `assets/dice_atlas.lua`: mappa le coordinate dei frame normali e con bordo all'interno di `sheet.png`.
+
+La logica dei dadi utilizza coordinate isometriche semplificate; i valori vengono ordinati per profondità in modo da disegnare i
+cubi con corretta sovrapposizione. Un easing "ease-out" crea un movimento morbido durante il roll mentre anim8 cicla rapidamente le facce per simulare la rotazione dei dadi.
+
+## Roadmap suggerita
 1. **Studia le basi**
    - Completa un tutorial introduttivo su Lua.
    - Segui una guida per principianti su LÖVE (ad esempio "How to LÖVE" o la wiki ufficiale).
-2. **Prototipo minimo**
-   - Carica l'immagine della plancia come sfondo.
-   - Disegna sei dadi statici in posizioni predefinite per comprendere il sistema di coordinate isometriche.
-3. **Animare il lancio**
-   - Implementa una semplice animazione: cambia rapidamente il valore mostrato sul dado prima di fermarlo su un numero casuale.
-   - Aggiungi un effetto di movimento (per esempio con tweening) per simulare il rotolamento.
-4. **Gestire l'input**
-   - Permetti al giocatore di cliccare sui dadi per selezionarli e tenerli da parte.
-   - Implementa i pulsanti "Roll", "Bank" e "End Turn".
-5. **Calcolare i punteggi**
-   - Codifica le regole di Farkle: combina valori dei dadi per determinare i punti, compresa la gestione dei dadi jolly.
-   - Mostra il punteggio corrente e quello accumulato.
-6. **Rifiniture**
-   - Aggiungi effetti sonori e una breve guida in-game.
-   - Mantieni il codice organizzato in moduli (per esempio `dice.lua`, `game_state.lua`).
-
-## Suggerimenti pratici
-- Inizia con vista top-down normale e passa all'isometria solo dopo aver stabilito la logica di gioco.
-- Usa librerie di supporto (ad esempio [anim8](https://github.com/kikito/anim8) per le animazioni di sprite) per accelerare lo sviluppo.
-- Versiona spesso il tuo codice con Git e testa ogni cambiamento.
-- Considera di costruire piccoli prototipi mirati (solo lancio dei dadi, solo calcolo punteggio) prima di unirli.
+2. **Espandi il prototipo**
+   - Implementa la selezione dei dadi cliccabili e i pulsanti UI (Roll, Bank, End Turn).
+   - Aggiungi effetti particellari o glow sui dadi durante il roll.
+3. **Implementa il gameplay**
+   - Codifica le regole di punteggio di Farkle, compresi i dadi speciali se previsti.
+   - Gestisci turni, banca del punteggio e feedback al giocatore (testi, audio, animazioni).
+4. **Rifiniture**
+   - Organizza il codice in moduli (`dice.lua`, `game_state.lua`, `ui.lua`).
+   - Aggiungi effetti sonori, musica di sottofondo e tutorial in-game.
 
 ## Risorse utili
 - [LÖVE Wiki](https://love2d.org/wiki/Main_Page)
 - [Lua Tutorial su learnxinyminutes](https://learnxinyminutes.com/docs/lua/)
 - Video tutorial "Making your first LÖVE game" su YouTube
-- Regole Farkle in italiano/inglese per riferimento rapido
+- Regole Farkle (italiano/inglese) per riferimento rapido
 
-## Prossimi passi
-1. Configura LÖVE sul tuo computer e prova a far girare un semplice `main.lua` con una finestra vuota.
-2. Aggiungi la plancia come immagine di sfondo.
-3. Disegna dadi come semplici quadrati o sprite e implementa la funzione di lancio.
-4. Itera gradualmente, aggiungendo punteggi e feedback.
-
-Ricorda: procedere per piccoli passi e imparare facendo è la chiave per trasformare l'idea in un progetto giocabile.
+Procedi per piccoli passi: sperimenta, testa, e consolida ogni feature prima di passare alla successiva. Buon divertimento con lo
+sviluppo!
