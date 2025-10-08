@@ -687,6 +687,8 @@ local function drawAmbientBackground()
         love.graphics.rectangle("fill", -w * 1.5, offset, w * 3, 36)
     end
     love.graphics.pop()
+end
+
 local function activateMenuItem(index)
     local item = mainMenu:getItem(index)
     if not item then return end
