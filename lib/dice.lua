@@ -111,7 +111,7 @@ function Dice.arrangeScatter(tray, roll, opts)
     local cx = tray.x + tray.w * 0.5
     local cy = tray.y + tray.h * 0.5
     local n = #roll
-    local minDist = Dice.SIZE + 8  -- Aumentato per evitare sovrapposizioni
+    local minDist = Dice.SIZE + 16  -- Molto aumentato per evitare sovrapposizioni
     local maxRadius = math.min(tray.w, tray.h) * 0.35 - Dice.RADIUS
     
     -- Disposizione più realistica e casuale
@@ -154,12 +154,21 @@ function Dice.arrangeScatter(tray, roll, opts)
             attempts = attempts + 1
         end
         
-        -- Se non è riuscito a posizionare, usa una posizione di fallback
+        -- Se non è riuscito a posizionare, usa una disposizione a griglia semplice
         if not placed then
-            local fallbackAngle = (i - 1) * (math.pi * 2 / n)
-            local fallbackRadius = maxRadius * 0.6
-            die.x = cx + math.cos(fallbackAngle) * fallbackRadius
-            die.y = cy + math.sin(fallbackAngle) * fallbackRadius
+            -- Disposizione a griglia 2x3 per 6 dadi
+            local gridCols = 3
+            local gridRows = 2
+            local gridSpacing = Dice.SIZE + 20  -- Spaziatura fissa
+            
+            local col = ((i - 1) % gridCols) + 1
+            local row = math.floor((i - 1) / gridCols) + 1
+            
+            local gridStartX = cx - (gridCols - 1) * gridSpacing / 2
+            local gridStartY = cy - (gridRows - 1) * gridSpacing / 2
+            
+            die.x = gridStartX + (col - 1) * gridSpacing
+            die.y = gridStartY + (row - 1) * gridSpacing
             die.angle = (random() - 0.5) * 0.3
         end
         
@@ -171,15 +180,15 @@ function Dice.arrangeScatter(tray, roll, opts)
         end
     end
 
-    -- Iterazioni di separazione più aggressive per evitare sovrapposizioni
-    for _ = 1, 25 do  -- Aumentato per separazione migliore
+    -- Iterazioni di separazione molto aggressive per evitare sovrapposizioni
+    for _ = 1, 50 do  -- Molto aumentato per separazione definitiva
         for i = 1, n do
             for j = i + 1, n do
                 local dx = roll[i].x - roll[j].x
                 local dy = roll[i].y - roll[j].y
                 local d = math.sqrt(dx * dx + dy * dy)
                 if d < minDist then
-                    local push = (minDist - d) * 0.6  -- Aumentato per separazione più forte
+                    local push = (minDist - d) * 0.8  -- Molto aumentato per separazione definitiva
                     local nx, ny = dx / (d + 0.01), dy / (d + 0.01)
                     roll[i].x = roll[i].x + nx * push
                     roll[i].y = roll[i].y + ny * push

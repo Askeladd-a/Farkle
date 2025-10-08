@@ -227,33 +227,20 @@ function DiceAnimations.drawDie(die, x, y, scale, rotation)
         animation = DiceAnimations.getFaceAnimation(die.value)
     end
     
-    -- Disegna sempre un dado visibile, anche se le animazioni non funzionano
-    if animation and animation.draw then
-        local success = pcall(function() 
-            animation:draw(diceImage, -32, -32)  -- Centra l'animazione
-        end)
-        if not success then
-            print("Errore nel disegno dell'animazione per dado valore " .. (die.value or "nil"))
-            -- Fallback: disegna un dado bianco solido
-            love.graphics.setColor(0.95, 0.95, 0.95, 1)
-            love.graphics.rectangle("fill", -32, -32, 64, 64, 8, 8)
-            love.graphics.setColor(0.1, 0.1, 0.1, 1)
-            love.graphics.setLineWidth(2)
-            love.graphics.rectangle("line", -32, -32, 64, 64, 8, 8)
-            -- Disegna i pip
-            DiceAnimations.drawSimplePips(die.value or 1)
-        end
-    else
-        print("Nessuna animazione disponibile per dado valore " .. (die.value or "nil") .. " - isRolling: " .. tostring(die.isRolling))
-        -- Fallback: disegna un dado bianco solido
-        love.graphics.setColor(0.95, 0.95, 0.95, 1)
-        love.graphics.rectangle("fill", -32, -32, 64, 64, 8, 8)
-        love.graphics.setColor(0.1, 0.1, 0.1, 1)
-        love.graphics.setLineWidth(2)
-        love.graphics.rectangle("line", -32, -32, 64, 64, 8, 8)
-        -- Disegna i pip
-        DiceAnimations.drawSimplePips(die.value or 1)
-    end
+    -- TEMPORANEAMENTE: Usa sempre il fallback per assicurare visibilità
+    print("Disegno dado con fallback - Valore: " .. (die.value or "nil") .. " - isRolling: " .. tostring(die.isRolling))
+    
+    -- Fallback: disegna un dado bianco solido e ben visibile
+    love.graphics.setColor(1, 1, 1, 1)  -- Bianco puro
+    love.graphics.rectangle("fill", -32, -32, 64, 64, 8, 8)
+    
+    -- Bordo nero spesso per definizione
+    love.graphics.setColor(0, 0, 0, 1)
+    love.graphics.setLineWidth(3)
+    love.graphics.rectangle("line", -32, -32, 64, 64, 8, 8)
+    
+    -- Disegna i pip neri e ben visibili
+    DiceAnimations.drawSimplePips(die.value or 1)
     
     love.graphics.pop()
     return true
@@ -261,10 +248,10 @@ end
 
 -- Disegna pip semplici per il fallback
 function DiceAnimations.drawSimplePips(value)
-    love.graphics.setColor(0.1, 0.1, 0.1, 1)
-    local pipSize = 4
+    love.graphics.setColor(0, 0, 0, 1)  -- Nero puro per massima visibilità
+    local pipSize = 6  -- Pip più grandi
     local centerX, centerY = 0, 0
-    local offset = 12
+    local offset = 14  -- Offset maggiore per pip più visibili
     
     -- Configurazione pip per ogni faccia
     local pipPositions = {
