@@ -349,6 +349,9 @@ local function attemptRoll()
 
     local ok = consumeSelection()
     if not ok then
+        if not getActivePlayer().isAI then
+            game.message = "Only scoring dice can be kept."
+        end
         return false
     end
     return startRoll()
