@@ -1,4 +1,5 @@
 local Dice = {}
+local DiceAnimations = require("lib.dice_animations")
 
 local random = love.math.random
 
@@ -217,6 +218,29 @@ local function drawPips(die)
 end
 
 function Dice.drawDie(die)
+    -- Prova prima a usare le animazioni, altrimenti usa il rendering tradizionale
+    if DiceAnimations.isInitialized() then
+        local scale = Dice.SIZE / 64  -- Scala da 64px (spritesheet) a 48px (Dice.SIZE)
+        
+        -- Ombra
+        love.graphics.setColor(0, 0, 0, 0.35)
+        love.graphics.ellipse("fill", die.x + 8, die.y + Dice.RADIUS + 6, Dice.RADIUS, Dice.RADIUS * 0.55)
+        
+        -- Disegna il dado con animazione
+        local success = DiceAnimations.drawDie(die, die.x, die.y, scale, die.angle)
+        
+        if success then
+            -- Indicatore selezione
+            if die.locked then
+                love.graphics.setColor(0.95, 0.82, 0.35, 0.85)
+                love.graphics.setLineWidth(3)
+                love.graphics.rectangle("line", die.x - Dice.RADIUS - 4, die.y - Dice.RADIUS - 4, Dice.SIZE + 8, Dice.SIZE + 8, 14, 14)
+            end
+            return
+        end
+    end
+    
+    -- Fallback al rendering tradizionale se le animazioni non sono disponibili
     -- Ombra
     love.graphics.setColor(0, 0, 0, 0.35)
     love.graphics.ellipse("fill", die.x + 8, die.y + Dice.RADIUS + 6, Dice.RADIUS, Dice.RADIUS * 0.55)
@@ -318,6 +342,18 @@ function Dice.drawKeptColumn(area, kept, alignTop)
             angle = 0,
             locked = false,
         })
+    end
+end
+
+-- Funzione per inizializzare le animazioni
+function Dice.initAnimations()
+    DiceAnimations.init()
+end
+
+-- Funzione per aggiornare le animazioni
+function Dice.updateAnimations(dt)
+    if DiceAnimations.isInitialized() then
+        DiceAnimations.update(dt)
     end
 end
 

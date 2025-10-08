@@ -1096,10 +1096,17 @@ function love.load()
     setupStripes(height)
     decodeCursor()
     loadSelectionImages()
+    
+    -- Inizializza le animazioni dei dadi
+    Dice.initAnimations()
+    
     game.message = "Welcome back!"
 end
 
 function love.update(dt)
+    -- Aggiorna le animazioni dei dadi
+    Dice.updateAnimations(dt)
+    
     updateGame(dt)
 end
 
