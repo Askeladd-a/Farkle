@@ -33,20 +33,49 @@ end
 S.basePoints = basePoints
 
 function S.scoreSelection(vals)
-  if #vals==0 then return {points=0, valid=false} end
-  local c0 = S.counts(vals)
-  local best={points=0,valid=false}
-  if #vals==6 and hasFaces(c0,{1,2,3,4,5,6}) then return {points=1500,valid=true} end
-  if #vals>=5 and hasFaces(c0,{2,3,4,5,6}) then
-    local c=S.counts(vals) for _,f in ipairs({2,3,4,5,6}) do c[f]=c[f]-1 end
-    local r=basePoints(c); if r.valid then best={points=750+r.points,valid=true} end
+  local c = S.counts(vals)
+  local used = {0,0,0,0,0,0,0}
+  local points = 0
+
+  -- 1+2+3+4+5+6 = 1500
+  if #vals == 6 and c[1]==1 and c[2]==1 and c[3]==1 and c[4]==1 and c[5]==1 and c[6]==1 then
+    points = points + 1500
+    for i=1,6 do used[i]=used[i]+1 end
   end
-  if #vals>=5 and hasFaces(c0,{1,2,3,4,5}) then
-    local c=S.counts(vals) for _,f in ipairs({1,2,3,4,5}) do c[f]=c[f]-1 end
-    local r=basePoints(c); if r.valid and 500+r.points>best.points then best={points=500+r.points,valid=true} end
+
+  -- 1+2+3+4+5 = 500
+  if c[1]>=1 and c[2]>=1 and c[3]>=1 and c[4]>=1 and c[5]>=1 then
+    points = points + 500
+    for i=1,5 do used[i]=used[i]+1 end
   end
-  local r2 = basePoints(c0); if r2.valid and r2.points>best.points then best=r2 end
-  return best
+
+  -- 2+3+4+5+6 = 750
+  if c[2]>=1 and c[3]>=1 and c[4]>=1 and c[5]>=1 and c[6]>=1 then
+    points = points + 750
+    for i=2,6 do used[i]=used[i]+1 end
+  end
+
+  -- Tre o più uguali (1X3 = 1000, 1X4 = 2000, ...)
+  for face=1,6 do
+    if c[face] >= 3 then
+      local base = (face==1) and 1000 or face*100
+      local mult = 2^(c[face]-3)
+      points = points + base*mult
+      used[face] = used[face] + c[face] -- segna tutti come usati
+    end
+  end
+
+  -- 1 = 100, 5 = 50 (solo quelli non già usati da combinazioni sopra)
+  if c[1] > used[1] then
+    points = points + 100 * (c[1] - used[1])
+    used[1] = c[1]
+  end
+  if c[5] > used[5] then
+    points = points + 50 * (c[5] - used[5])
+    used[5] = c[5]
+  end
+
+  return {points=points, valid=points>0}
 end
 
 function S.hasAnyScoring(roll)
