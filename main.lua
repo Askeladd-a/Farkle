@@ -169,7 +169,7 @@ local function setupLayout(width, height)
         hudWidth = width - marginX * 2
         hudX = marginX
     else
-        hudWidth = math.min(math.max(360, boardAreaWidth * 0.92), boardAreaWidth)
+        hudWidth = math.min(math.max(300, boardAreaWidth * 0.75), boardAreaWidth)  -- Ridotto da 0.92 a 0.75
         hudX = marginX + (boardAreaWidth - hudWidth) / 2
     end
 
@@ -196,16 +196,16 @@ local function setupLayout(width, height)
         availableHeight = height - marginY * 2 - hudSpacing.totalHeight - hudToBoardSpacing - messageSpacing - messageMinHeight
     end
     
-    -- RENDI LA BOARD PIÙ GRANDE: Aumenta le dimensioni minime
-    local minBoardHeight = math.max(height * 0.45, Dice.SIZE * 3.5)  -- Aumentato da 0.3 a 0.45
+    -- RENDI LA BOARD MOLTO PIÙ GRANDE: Aumenta drasticamente le dimensioni
+    local minBoardHeight = math.max(height * 0.6, Dice.SIZE * 4.5)  -- Aumentato da 0.45 a 0.6
     local maxBoardHeight = math.max(availableHeight, minBoardHeight)
 
-    -- RENDI LA BOARD PIÙ LARGA: Usa più spazio disponibile
-    local boardWidth = math.min(boardWidthArea * 0.9, maxBoardHeight * (4 / 3))  -- Usa 90% dello spazio
+    -- RENDI LA BOARD MOLTO PIÙ LARGA: Usa quasi tutto lo spazio disponibile
+    local boardWidth = math.min(boardWidthArea * 0.95, maxBoardHeight * (4 / 3))  -- Usa 95% dello spazio
     local boardHeight = boardWidth * (3 / 4)
     if boardHeight > maxBoardHeight then
         boardHeight = maxBoardHeight
-        boardWidth = math.min(boardWidthArea * 0.9, boardHeight * (4 / 3))  -- Usa 90% dello spazio
+        boardWidth = math.min(boardWidthArea * 0.95, boardHeight * (4 / 3))  -- Usa 95% dello spazio
     end
 
     boardX = (width - boardWidth) / 2
@@ -1034,7 +1034,7 @@ local function updateGame(dt)
             else
                 local player = getActivePlayer()
                 if player.isAI then
-                    game.message = "Baron von Farkle is choosing dice."
+                    game.message = "Baron von Farkle is thinking..."
                 else
                     game.message = "Select scoring dice, then Roll or Bank."
                 end

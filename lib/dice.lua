@@ -277,7 +277,8 @@ function Dice.drawKeptColumn(area, kept, alignTop)
         return
     end
 
-    local spacing = Dice.SIZE + 8
+    -- Spaziatura più generosa per evitare sovrapposizioni
+    local spacing = Dice.SIZE + 16  -- Aumentato da 8 a 16
     if area.h > 0 then
         spacing = math.min(spacing, area.h / #kept)
     end

@@ -153,7 +153,7 @@ function AIController:update(dt, ctx)
         else
             ctx.attemptRoll()
         end
-        self.delay = 0.9
+        self.delay = 1.5  -- Aumentato da 0.9 a 1.5 secondi
         self:clearPending()
         return
     end
@@ -167,7 +167,7 @@ function AIController:update(dt, ctx)
     if not best then
         if ctx.turnTemp() > 0 then
             ctx.attemptBank()
-            self.delay = 1.0
+            self.delay = 1.2  -- Aumentato da 1.0 a 1.2 secondi
         end
         return
     end
@@ -175,7 +175,7 @@ function AIController:update(dt, ctx)
     ctx.lockDice(best.indices)
     ctx.refreshScores()
     self.pending = "evaluate"
-    self.delay = 0.45
+    self.delay = 0.8  -- Aumentato da 0.45 a 0.8 secondi
 end
 
 return AIController
