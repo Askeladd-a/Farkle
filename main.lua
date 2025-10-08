@@ -40,29 +40,39 @@ local function loadSelectionParticleImages()
     end
 end
 
+local function setParticleTexture(ps, image)
+    if not ps or not image then return end
+    if ps.setTexture then
+        ps:setTexture(image)
+    elseif ps.setImage then
+        ps:setImage(image)
+    elseif ps.setImages then
+        ps:setImages(image)
+    end
+end
+
 local function createSelectionParticleSystem()
-    local count = #selectionParticleImages
-    if count == 0 then
+    if #selectionParticleImages == 0 then
         return nil
     end
-    local image = selectionParticleImages[love.math.random(1, count)]
-    local ps = love.graphics.newParticleSystem(image, 96)
+    local ps = love.graphics.newParticleSystem(selectionParticleImages[1], 72)
     ps:setEmitterLifetime(-1)
-    ps:setParticleLifetime(0.35, 0.85)
-    ps:setEmissionRate(48)
-    ps:setSizeVariation(0.65)
-    ps:setSizes(0.35, 0.08)
-    ps:setSpeed(18, 46)
-    ps:setLinearAcceleration(-22, -22, 22, 22)
-    ps:setRadialAcceleration(-14, 14)
-    ps:setTangentialAcceleration(-20, 20)
-    ps:setSpin(-1.1, 1.1)
-    ps:setSpinVariation(1)
+    ps:setParticleLifetime(0.32, 0.7)
+    ps:setEmissionRate(12)
+    ps:setInsertMode("random")
+    ps:setSizeVariation(0.35)
+    ps:setSizes(0.22, 0.05)
+    ps:setSpeed(10, 26)
+    ps:setLinearAcceleration(-14, -14, 14, 14)
+    ps:setRadialAcceleration(-10, 10)
+    ps:setTangentialAcceleration(-12, 12)
+    ps:setSpin(-0.8, 0.8)
+    ps:setSpinVariation(0.6)
     ps:setColors(
-        0.95, 0.85, 0.35, 0.82,
-        0.4, 0.65, 1.0, 0.35
+        0.95, 0.85, 0.35, 0.65,
+        0.35, 0.6, 1.0, 0.28
     )
-    ps:setEmissionArea("uniform", diceSpriteSize * 0.25, diceSpriteSize * 0.25, 0, true)
+    ps:setEmissionArea("uniform", diceSpriteSize * 0.18, diceSpriteSize * 0.18, 0, true)
     ps:setRelativeRotation(true)
     ps:stop()
     return ps
@@ -76,9 +86,14 @@ local function updateSelectionParticles(die, dt)
     if shouldBeActive then
         if not die.selectionParticlesActive then
             die.selectionParticlesActive = true
+            local count = #selectionParticleImages
+            if count > 0 then
+                local image = selectionParticleImages[love.math.random(1, count)]
+                setParticleTexture(die.particles, image)
+            end
             die.particles:reset()
             die.particles:start()
-            die.particles:emit(28)
+            die.particles:emit(12)
         end
     elseif die.selectionParticlesActive then
         die.selectionParticlesActive = false
@@ -227,6 +242,7 @@ local startNewGame
 local generateDicePositions
 local attemptRoll
 local attemptBank
+local detectBust
 
 local mainMenu = Menu.new({
     {id = "start", label = "Start Game", blurb = "Roll the bones and chase a streak."},
@@ -470,7 +486,7 @@ refreshScores = function()
     turn.canPass = turn.temp > 0 or turn.canContinue
 end
 
-local function detectBust()
+detectBust = function()
     local activeValues = {}
     for _, die in ipairs(dice) do
         if not die.spent then
