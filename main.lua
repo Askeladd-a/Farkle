@@ -46,10 +46,39 @@ game.layout = {
     message = {},
 }
 
+local BUTTON_LABELS = {"Roll Dice", "Bank Points", "Guide", "Main Menu"}
+
 local fonts = {}
 local winningScore = 10000
 local backgroundStripes = {}
 local customCursor
+
+local function copyRect(rect)
+    if not rect then
+        return nil
+    end
+    return {x = rect.x, y = rect.y, w = rect.w, h = rect.h}
+end
+
+local function snapshotLayout()
+    return {
+        trays = {
+            ai = copyRect(game.layout.trays.ai),
+            player = copyRect(game.layout.trays.player),
+        },
+    }
+end
+
+local function realignDiceAfterLayout(oldLayout)
+    local trays = game.layout.trays
+    local previous = oldLayout and oldLayout.trays or {}
+    for id, tray in pairs(trays) do
+        local roll = game.rolls[id]
+        if roll then
+            Dice.recenterDice(roll, previous[id], tray)
+        end
+    end
+end
 
 local function getActivePlayer()
     return game.players[game.active]
@@ -101,46 +130,89 @@ local function computeHudSpacing()
 end
 
 local function setupLayout(width, height)
-    -- Board centrata, ma lasciamo spazio sopra per HUD e sotto per pulsanti
-    local marginY = math.max(32, height * 0.08)
+    local marginY = math.max(32, height * 0.06)
+    if marginY * 2 >= height then
+        marginY = math.max(20, height / 2 - 8)
+    end
     local marginX = math.max(24, width * 0.05)
-
+    if marginX * 2 >= width then
+        marginX = math.max(16, width / 2 - 8)
+    end
     local hudSpacing = computeHudSpacing()
-    local hudWidth = math.min(math.max(360, width * 0.42), width - marginX * 2)
+
+    local buttonHeight = 56
+    local buttonGap = 18
+    local panelPadding = 16
+    local buttonCount = #BUTTON_LABELS
+    local buttonColumnHeight = buttonHeight * buttonCount + buttonGap * (buttonCount - 1)
+
+    local baseButtonWidth = math.min(280, math.max(200, width * 0.18))
+    local sideSpacing = math.max(24, width * 0.03)
+    local boardAreaWidth = width - marginX * 2 - baseButtonWidth - sideSpacing
+    local minBoardAreaWidth = 520
+    local stackedLayout = boardAreaWidth < minBoardAreaWidth
+
+    local hudWidth
+    local hudX
     local hudY = marginY
+
+    if stackedLayout then
+        hudWidth = width - marginX * 2
+        hudX = marginX
+    else
+        hudWidth = math.min(math.max(360, boardAreaWidth * 0.92), boardAreaWidth)
+        hudX = marginX + (boardAreaWidth - hudWidth) / 2
+    end
+
     game.layout.hud = {
-        x = (width - hudWidth) / 2,
+        x = hudX,
         y = hudY,
         w = hudWidth,
         h = hudSpacing.totalHeight,
     }
     game.layout.hudSpacing = hudSpacing
 
-    local hudToBoardSpacing = math.max(40, height * 0.04)
-    local footerSpace = 180
-    local usableHeight = height - marginY * 2 - hudSpacing.totalHeight - hudToBoardSpacing - footerSpace
-    local maxBoardHeight = math.max(usableHeight, height * 0.3)
+    local hudToBoardSpacing = math.max(stackedLayout and 28 or 40, height * 0.04)
 
-    local boardWidth = math.min(width - marginX * 2, maxBoardHeight * (4 / 3))
+    local boardWidthArea = stackedLayout and (width - marginX * 2) or boardAreaWidth
+    local messageMinHeight = math.max(110, (fonts.body and fonts.body:getHeight() or 24) * 3)
+    local buttonPanelWidth = stackedLayout and math.min(360, width - marginX * 2) or baseButtonWidth
+    local panelHeight = buttonColumnHeight + panelPadding * 2
+    local boardX
+    local boardY = hudY + hudSpacing.totalHeight + hudToBoardSpacing
+    local messageSpacing = math.max(28, height * 0.035)
+
+    local availableHeight = height - marginY - boardY - panelHeight - messageSpacing - messageMinHeight
+    if not stackedLayout then
+        availableHeight = height - marginY * 2 - hudSpacing.totalHeight - hudToBoardSpacing - messageSpacing - messageMinHeight
+    end
+    local minBoardHeight = math.max(height * 0.3, Dice.SIZE * 2.4)
+    local maxBoardHeight = math.max(availableHeight, minBoardHeight)
+
+    local boardWidth = math.min(boardWidthArea, maxBoardHeight * (4 / 3))
     local boardHeight = boardWidth * (3 / 4)
     if boardHeight > maxBoardHeight then
         boardHeight = maxBoardHeight
-        boardWidth = boardHeight * (4 / 3)
-        if boardWidth > width - marginX * 2 then
-            boardWidth = width - marginX * 2
-            boardHeight = boardWidth * (3 / 4)
-        end
+        boardWidth = math.min(boardWidthArea, boardHeight * (4 / 3))
     end
-    local boardX = (width - boardWidth) / 2
-    local boardY = hudY + hudSpacing.totalHeight + hudToBoardSpacing
+
+    boardX = (width - boardWidth) / 2
+    if not stackedLayout then
+        boardX = marginX + (boardAreaWidth - boardWidth) / 2
+    end
 
     game.layout.board = {x = boardX, y = boardY, w = boardWidth, h = boardHeight}
     game.layout.hingeY = boardY + boardHeight * 0.68
+    game.layout.mode = stackedLayout and "stacked" or "wide"
 
-    local trayWidth = boardWidth * 0.72
-    local trayHeight = boardHeight * 0.18
+    local desiredTrayWidth = stackedLayout and boardWidth * 0.66 or boardWidth * 0.72
+    local maxTrayWidth = math.max(boardWidth - 2 * (Dice.SIZE + 40), boardWidth * 0.5)
+    local trayWidth = math.min(desiredTrayWidth, maxTrayWidth)
+    trayWidth = math.max(trayWidth, Dice.SIZE * 3)
+    local trayHeight = math.max(Dice.SIZE * 1.6, boardHeight * 0.18)
+    local sideSpace = math.max(32, (boardWidth - trayWidth) / 2)
     local trayX = boardX + (boardWidth - trayWidth) / 2
-    local traySpacing = math.max(32, boardHeight * 0.08)
+    local traySpacing = math.max(stackedLayout and 28 or 32, boardHeight * 0.08)
 
     game.layout.trays.ai = {
         x = trayX,
@@ -155,39 +227,119 @@ local function setupLayout(width, height)
         h = trayHeight,
     }
 
-    local keptSpacing = math.max(96, trayWidth * 0.18)
-    game.layout.kept.ai = {
-        x = trayX - keptSpacing,
-        y = game.layout.trays.ai.y,
-        w = keptSpacing - 16,
-        h = trayHeight,
-    }
-    game.layout.kept.player = {
-        x = trayX + trayWidth + 16,
-        y = game.layout.trays.player.y,
-        w = keptSpacing - 16,
-        h = trayHeight,
-    }
+    local useStackedKept = stackedLayout and sideSpace < Dice.SIZE + 20
+    if useStackedKept then
+        local keptHeight = math.max(Dice.SIZE + 16, trayHeight * 0.75)
+        local aiY = game.layout.trays.ai.y - keptHeight - 12
+        if aiY < boardY + 12 then
+            aiY = boardY + 12
+        end
+        local playerY = game.layout.trays.player.y + trayHeight + 12
+        local maxPlayerY = boardY + boardHeight - keptHeight - 12
+        if playerY > maxPlayerY then
+            playerY = maxPlayerY
+        end
 
-    -- Messaggio centrato sotto la board
-    game.layout.message = {
-        x = boardX + 32,
-        y = boardY + boardHeight + 16,
-        w = boardWidth - 64,
-        h = 90,
-    }
+        game.layout.kept.ai = {
+            x = trayX,
+            y = aiY,
+            w = trayWidth,
+            h = keptHeight,
+        }
+        game.layout.kept.player = {
+            x = trayX,
+            y = playerY,
+            w = trayWidth,
+            h = keptHeight,
+        }
+    else
+        local maxBySpace = math.max(24, sideSpace - 8)
+        local targetWidth = math.min(math.max(Dice.SIZE + 12, sideSpace - 12), boardWidth * 0.22)
+        local keptWidth = math.min(targetWidth, maxBySpace)
+        if maxBySpace >= Dice.SIZE + 12 then
+            keptWidth = math.max(keptWidth, Dice.SIZE + 12)
+        end
+        local keptOffset = math.max(8, (sideSpace - keptWidth) / 2)
 
-    -- Pulsanti a destra della board, centrati verticalmente rispetto alla board
-    local buttonPanelW = 200
-    local buttonPanelH = 4 * 56 + 3 * 18
-    local buttonPanelX = boardX + boardWidth + math.max(24, width * 0.03)
-    local buttonPanelY = boardY + (boardHeight - buttonPanelH) / 2
+        game.layout.kept.ai = {
+            x = boardX + keptOffset,
+            y = game.layout.trays.ai.y,
+            w = keptWidth,
+            h = trayHeight,
+        }
+        game.layout.kept.player = {
+            x = boardX + boardWidth - keptWidth - keptOffset,
+            y = game.layout.trays.player.y,
+            w = keptWidth,
+            h = trayHeight,
+        }
+    end
+
+    local messageWidth = stackedLayout and (width - marginX * 2) or boardWidth
+    local messageX = stackedLayout and marginX or boardX
+    local messageYBase = boardY + boardHeight + messageSpacing
+
+    local panelX
+    local panelY
+    local panelW = buttonPanelWidth
+    local panelH = panelHeight
+
+    if stackedLayout then
+        panelX = (width - panelW) / 2
+        panelY = messageYBase
+        messageYBase = panelY + panelH + messageSpacing
+    else
+        panelX = marginX + boardAreaWidth + sideSpacing
+        panelY = boardY + (boardHeight - panelH) / 2
+        if panelY < marginY then
+            panelY = marginY
+        end
+        if panelY + panelH > height - marginY then
+            panelY = math.max(marginY, height - marginY - panelH)
+        end
+    end
+
+    local buttonInnerWidth = math.max(120, panelW - panelPadding * 2)
+    if buttonInnerWidth > panelW - 8 then
+        buttonInnerWidth = panelW - 8
+    end
+    local buttonOffsetX = (panelW - buttonInnerWidth) / 2
+
     game.layout.buttons = {
-        x = buttonPanelX,
-        y = buttonPanelY,
-        w = buttonPanelW,
-        h = 56,
-        spacing = 18,
+        x = panelX + buttonOffsetX,
+        y = panelY + panelPadding,
+        w = buttonInnerWidth,
+        h = buttonHeight,
+        spacing = buttonGap,
+        panel = {x = panelX, y = panelY, w = panelW, h = panelH},
+    }
+
+    local availableMessageHeight = height - messageYBase - marginY
+    local messageHeight
+    if availableMessageHeight <= 0 then
+        messageHeight = messageMinHeight
+        messageYBase = math.max(marginY, height - marginY - messageHeight)
+    else
+        messageHeight = math.max(messageMinHeight, availableMessageHeight)
+        if messageHeight > availableMessageHeight then
+            local shift = messageHeight - availableMessageHeight
+            messageYBase = math.max(marginY, messageYBase - shift)
+            availableMessageHeight = height - messageYBase - marginY
+            if availableMessageHeight > 0 and messageHeight > availableMessageHeight then
+                messageHeight = availableMessageHeight
+            elseif availableMessageHeight <= 0 then
+                messageHeight = messageMinHeight
+                messageYBase = math.max(marginY, height - marginY - messageHeight)
+            end
+        end
+    end
+
+    game.layout.message = {
+        x = messageX,
+        y = messageYBase,
+        w = messageWidth,
+        h = math.max(60, messageHeight),
+        padding = math.max(18, (fonts.body and fonts.body:getHeight() or 24) * 0.75),
     }
 end
 
@@ -568,9 +720,17 @@ local function drawHUD()
 end
 
 local function drawMessage()
+    local messageLayout = game.layout.message
+    love.graphics.setColor(0.1, 0.08, 0.06, 0.88)
+    love.graphics.rectangle("fill", messageLayout.x, messageLayout.y, messageLayout.w, messageLayout.h, 14, 14)
+    love.graphics.setColor(0.35, 0.27, 0.18)
+    love.graphics.setLineWidth(2)
+    love.graphics.rectangle("line", messageLayout.x + 4, messageLayout.y + 4, messageLayout.w - 8, messageLayout.h - 8, 12, 12)
+
     love.graphics.setFont(fonts.body)
     love.graphics.setColor(0.95, 0.92, 0.85)
-    love.graphics.printf(game.message, game.layout.message.x, game.layout.message.y, game.layout.message.w, "center")
+    local padding = messageLayout.padding or 18
+    love.graphics.printf(game.message, messageLayout.x + padding, messageLayout.y + padding, messageLayout.w - padding * 2, "center")
 end
 
 local function buttonEnabled(label)
@@ -620,9 +780,8 @@ end
 local function rebuildButtons()
     game.buttons = {}
     local layout = game.layout.buttons
-    local labels = {"Roll Dice", "Bank Points", "Guide", "Main Menu"}
     local y = layout.y
-    for _, label in ipairs(labels) do
+    for _, label in ipairs(BUTTON_LABELS) do
         local enabled = buttonEnabled(label)
         table_insert(game.buttons, {
             label = label,
@@ -638,6 +797,14 @@ end
 
 local function drawButtons()
     rebuildButtons()
+    local layout = game.layout.buttons
+    if layout.panel then
+        love.graphics.setColor(0.12, 0.09, 0.06, 0.9)
+        love.graphics.rectangle("fill", layout.panel.x, layout.panel.y, layout.panel.w, layout.panel.h, 18, 18)
+        love.graphics.setColor(0.35, 0.27, 0.18)
+        love.graphics.setLineWidth(2)
+        love.graphics.rectangle("line", layout.panel.x + 4, layout.panel.y + 4, layout.panel.w - 8, layout.panel.h - 8, 14, 14)
+    end
     for _, button in ipairs(game.buttons) do
         if button.enabled then
             love.graphics.setColor(0.34, 0.48, 0.72)
@@ -649,7 +816,11 @@ local function drawButtons()
         love.graphics.setLineWidth(2)
         love.graphics.rectangle("line", button.x, button.y, button.w, button.h, 12, 12)
         love.graphics.setFont(fonts.small)
-        love.graphics.setColor(0.95, 0.98, 1.0)
+        if button.enabled then
+            love.graphics.setColor(0.95, 0.98, 1.0)
+        else
+            love.graphics.setColor(0.65, 0.7, 0.78)
+        end
         love.graphics.printf(button.label, button.x, button.y + button.h / 2 - fonts.small:getHeight() / 2, button.w, "center")
     end
 end
@@ -901,8 +1072,8 @@ function love.draw()
     drawTray(game.layout.trays.ai)
     drawTray(game.layout.trays.player)
 
-    Dice.drawKeptColumn(game.layout.trays.ai, game.kept.ai, true, false)
-    Dice.drawKeptColumn(game.layout.trays.player, game.kept.player, false, true)
+    Dice.drawKeptColumn(game.layout.kept.ai, game.kept.ai, true)
+    Dice.drawKeptColumn(game.layout.kept.player, game.kept.player, false)
 
     drawDice()
     drawHUD()
@@ -961,7 +1132,9 @@ function love.mousepressed(x, y, button)
 end
 
 function love.resize(width, height)
+    local previousLayout = snapshotLayout()
     refreshFonts(width, height)
     setupLayout(width, height)
     setupStripes(height)
+    realignDiceAfterLayout(previousLayout)
 end

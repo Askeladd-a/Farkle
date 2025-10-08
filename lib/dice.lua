@@ -95,7 +95,8 @@ function Dice.updateRoll(roll, tray, dt)
     end
 end
 
-function Dice.arrangeScatter(tray, roll)
+function Dice.arrangeScatter(tray, roll, opts)
+    opts = opts or {}
     if #roll == 0 then return end
 
     local cx = tray.x + tray.w * 0.5
@@ -112,8 +113,12 @@ function Dice.arrangeScatter(tray, roll)
         die.x = cx + math.cos(angle) * dist
         die.y = cy + math.sin(angle) * dist
         die.angle = (random() - 0.5) * 0.25
-        die.isRolling = false
-        die.locked = false
+        if not opts.keepRollingState then
+            die.isRolling = false
+        end
+        if not opts.preserveLocks then
+            die.locked = false
+        end
     end
 
     -- Migliora la separazione: se troppo vicini, sposta radialmente
@@ -192,27 +197,57 @@ function Dice.drawDie(die)
     end
 end
 
-function Dice.drawKeptColumn(tray, kept, alignTop, alignRight)
-    local spacing = Dice.SIZE + 8
-    local startX
-    if alignRight then
-        startX = tray.x + tray.w + 16
-    else
-        startX = tray.x - 16 - Dice.SIZE
-    end
-    local startY
-    if alignTop then
-        startY = tray.y
-    else
-        startY = tray.y + tray.h - spacing * (#kept)
+function Dice.recenterDice(roll, oldTray, newTray)
+    if not newTray or not roll then
+        return
     end
 
+    local newWidth = math.max(newTray.w, Dice.SIZE)
+    local newHeight = math.max(newTray.h, Dice.SIZE)
+    local marginX = math.min(0.45, Dice.RADIUS / newWidth)
+    local marginY = math.min(0.45, Dice.RADIUS / newHeight)
+
+    for _, die in ipairs(roll) do
+        local relX = 0.5
+        local relY = 0.5
+        if oldTray and oldTray.w and oldTray.w > 0 then
+            relX = (die.x - oldTray.x) / oldTray.w
+        end
+        if oldTray and oldTray.h and oldTray.h > 0 then
+            relY = (die.y - oldTray.y) / oldTray.h
+        end
+        relX = math.max(marginX, math.min(1 - marginX, relX))
+        relY = math.max(marginY, math.min(1 - marginY, relY))
+
+        die.x = newTray.x + relX * newTray.w
+        die.y = newTray.y + relY * newTray.h
+        clampDie(die, newTray)
+    end
+end
+
+function Dice.drawKeptColumn(area, kept, alignTop)
+    if not area or #kept == 0 then
+        return
+    end
+
+    local spacing = Dice.SIZE + 8
+    if area.h > 0 then
+        spacing = math.min(spacing, area.h / #kept)
+    end
+    local totalHeight = spacing * #kept
+    local startY
+    if alignTop then
+        startY = area.y + spacing * 0.5
+    else
+        startY = area.y + area.h - totalHeight + spacing * 0.5
+    end
+    local centerX = area.x + area.w * 0.5
+
     for index, value in ipairs(kept) do
-        local x = startX
-        local y = startY + (index - 0.5) * spacing
+        local y = startY + (index - 1) * spacing
         Dice.drawDie({
             value = value,
-            x = x,
+            x = centerX,
             y = y,
             angle = 0,
             locked = false,
