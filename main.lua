@@ -115,13 +115,24 @@ end
 -- === LAYOUT COMPUTATION ===
 -- Layout logic now in src/layout.lua
 
+local FONT_PATH = "images/teutonic1.ttf"
+
 local function refreshFonts(width, height)
     local base = math.min(width, height)
-    fonts.title = love.graphics.newFont(math.max(48, math.floor(base * 0.07)))
-    fonts.h2 = love.graphics.newFont(math.max(28, math.floor(base * 0.04)))
-    fonts.body = love.graphics.newFont(math.max(20, math.floor(base * 0.028)))
-    fonts.small = love.graphics.newFont(math.max(16, math.floor(base * 0.022)))
-    fonts.tiny = love.graphics.newFont(math.max(12, math.floor(base * 0.018)))
+
+    local function loadFont(size)
+        local ok, font = pcall(love.graphics.newFont, FONT_PATH, size)
+        if ok and font then
+            return font
+        end
+        return love.graphics.newFont(size)
+    end
+
+    fonts.title = loadFont(math.max(48, math.floor(base * 0.07)))
+    fonts.h2 = loadFont(math.max(28, math.floor(base * 0.04)))
+    fonts.body = loadFont(math.max(20, math.floor(base * 0.028)))
+    fonts.small = loadFont(math.max(16, math.floor(base * 0.022)))
+    fonts.tiny = loadFont(math.max(12, math.floor(base * 0.018)))
 end
 
 -- === GAME STATE MANAGEMENT ===
