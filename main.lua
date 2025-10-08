@@ -30,6 +30,26 @@ local turn = {
 }
 local selectedDie = 1 -- index of the die selected for keyboard input
 local selection = {points = 0, valid = false, dice = 0}
+
+local function setGameState(state)
+    gameState = state
+    if state == "menu" then
+        mainMenu.pulse = 0
+        if #mainMenu.items > 0 then
+            mainMenu.selectedIndex = 1
+        end
+    end
+end
+
+local function drawShadowedText(font, text, x, y, color, shadowColor)
+    love.graphics.setFont(font)
+    shadowColor = shadowColor or {0, 0, 0, 0.65}
+    color = color or {1, 1, 1, 1}
+    love.graphics.setColor(shadowColor)
+    love.graphics.print(text, x + 3, y + 3)
+    love.graphics.setColor(color)
+    love.graphics.print(text, x, y)
+end
 local function ensureSelectedDieValid()
     if #dice == 0 then return end
     if dice[selectedDie] and not dice[selectedDie].spent then
@@ -58,6 +78,22 @@ local function moveSelection(delta)
 end
 
 local rollAllDice
+local startNewGame
+
+local gameState = "menu"
+local globalTime = 0
+
+local mainMenu = {
+    items = {
+        {id = "start", label = "Start Game", blurb = "Roll the bones and chase a streak."},
+        {id = "options", label = "Options", blurb = "Tune the experience (coming soon)."},
+        {id = "guide", label = "How to Play", blurb = "Learn the flow of Farkle."},
+        {id = "exit", label = "Exit", blurb = "Leave the table."},
+    },
+    selectedIndex = 1,
+    pulse = 0,
+    itemBounds = {},
+}
 
 local function getAvailableFaceCount()
     if diceFrameSets.normal and #diceFrameSets.normal > 0 then
@@ -360,6 +396,28 @@ local function createDie()
     return die
 end
 
+function startNewGame()
+    dicePositions = nil
+    dice = {}
+    for i = 1, numDice do
+        table.insert(dice, createDie())
+    end
+
+    turn.banked = 0
+    turn.temp = 0
+    turn.bust = false
+    turn.canContinue = false
+    turn.canPass = false
+
+    selection.points = 0
+    selection.valid = false
+    selection.dice = 0
+
+    selectedDie = 1
+    ensureSelectedDieValid()
+    rollAllDice()
+end
+
 local function updateLayout()
     local sw, sh = love.graphics.getWidth(), love.graphics.getHeight()
     local margin = 24
@@ -425,16 +483,161 @@ local function drawDie(die)
 end
 
 local function drawHelp()
-    local text = "SPACE/F or right click: score & roll | Q: bank | Left click die: lock/unlock"
+    local text = "Space/Enter/F or Right Click: score & roll    Q: bank winnings    Esc: main menu"
     love.graphics.setFont(fonts.help)
     local width = fonts.help:getWidth(text)
     local height = fonts.help:getHeight()
     local x = love.graphics.getWidth() * 0.5 - width * 0.5
-    local y = love.graphics.getHeight() - height - 20
-    love.graphics.setColor(0, 0, 0, 0.4)
-    love.graphics.rectangle("fill", x - 12, y - 6, width + 24, height + 12, 12, 12)
-    love.graphics.setColor(1, 1, 1, 1)
-    love.graphics.print(text, x, y)
+    local y = love.graphics.getHeight() - height - 24
+    love.graphics.setColor(0.03, 0.07, 0.12, 0.78)
+    love.graphics.rectangle("fill", x - 18, y - 10, width + 36, height + 20, 16, 16)
+    love.graphics.setColor(0.98, 0.8, 0.3, 0.9)
+    love.graphics.rectangle("line", x - 18, y - 10, width + 36, height + 20, 16, 16)
+    drawShadowedText(fonts.help, text, x, y, {0.92, 0.94, 0.98, 1})
+end
+
+local function updateMenu(dt)
+    mainMenu.pulse = (mainMenu.pulse or 0) + dt * 2
+end
+
+local function drawAmbientBackground()
+    local w, h = love.graphics.getWidth(), love.graphics.getHeight()
+    love.graphics.setColor(0.05, 0.06, 0.09, 1)
+    love.graphics.rectangle("fill", 0, 0, w, h)
+
+    love.graphics.push()
+    love.graphics.translate(w * 0.5, h * 0.5)
+    love.graphics.rotate(math.rad(32))
+    for i = -6, 6 do
+        local offset = (i * 140 + globalTime * 120) % (h * 2) - h
+        love.graphics.setColor(0.14, 0.2, 0.32, 0.12)
+        love.graphics.rectangle("fill", -w * 1.5, offset, w * 3, 36)
+    end
+    love.graphics.pop()
+end
+
+local function drawMenuCard(x, y, w, h, isSelected, accentPulse)
+    love.graphics.setColor(0.06, 0.09, 0.14, 0.86)
+    love.graphics.rectangle("fill", x, y, w, h, 18, 18)
+    love.graphics.setColor(0.3, 0.4, 0.68, 0.55)
+    love.graphics.rectangle("line", x, y, w, h, 18, 18)
+    if isSelected then
+        local glow = 0.6 + 0.3 * math.sin(accentPulse)
+        love.graphics.setColor(0.98, 0.72 + 0.08 * glow, 0.28 + 0.1 * glow, 1)
+        love.graphics.setLineWidth(4)
+        love.graphics.rectangle("line", x - 6, y - 6, w + 12, h + 12, 22, 22)
+        love.graphics.setLineWidth(1)
+    end
+end
+
+local function drawMainMenu()
+    local w, h = love.graphics.getWidth(), love.graphics.getHeight()
+    love.graphics.setColor(0.02, 0.03, 0.05, 0.78)
+    love.graphics.rectangle("fill", 0, 0, w, h)
+
+    local title = "Neon Farkle"
+    local titleWidth = fonts.title:getWidth(title)
+    local titleX = (w - titleWidth) * 0.5
+    local titleY = h * 0.18
+    drawShadowedText(fonts.title, title, titleX, titleY, {0.98, 0.78, 0.32, 1}, {0.02, 0.02, 0.02, 0.8})
+
+    local subtitle = "Roll with style. Bank with nerve."
+    local subtitleX = (w - fonts.help:getWidth(subtitle)) * 0.5
+    drawShadowedText(fonts.help, subtitle, subtitleX, titleY + fonts.title:getHeight() + 12, {0.82, 0.86, 0.96, 1})
+
+    local itemHeight = fonts.menu:getHeight() + 22
+    local spacing = 16
+    local totalHeight = #mainMenu.items * itemHeight + (#mainMenu.items - 1) * spacing
+    local baseY = h * 0.45 - totalHeight * 0.5
+    local cardWidth = math.max(360, w * 0.32)
+    local cardX = (w - cardWidth) * 0.5
+
+    mainMenu.itemBounds = {}
+    for index, item in ipairs(mainMenu.items) do
+        local itemY = baseY + (index - 1) * (itemHeight + spacing)
+        local isSelected = index == mainMenu.selectedIndex
+        drawMenuCard(cardX, itemY, cardWidth, itemHeight, isSelected, mainMenu.pulse * 2 + index)
+        mainMenu.itemBounds[index] = {x = cardX, y = itemY, w = cardWidth, h = itemHeight}
+
+        local textY = itemY + (itemHeight - fonts.menu:getHeight()) * 0.5 - 2
+        local textColor = isSelected and {0.98, 0.93, 0.85, 1} or {0.78, 0.82, 0.9, 1}
+        drawShadowedText(fonts.menu, item.label, cardX + 28, textY, textColor)
+    end
+
+    local selectedItem = mainMenu.items[mainMenu.selectedIndex]
+    if selectedItem then
+        local blurb = selectedItem.blurb
+        local blurbWidth = fonts.body:getWidth(blurb)
+        local blurbX = (w - blurbWidth) * 0.5
+        drawShadowedText(fonts.body, blurb, blurbX, baseY + totalHeight + 42, {0.86, 0.88, 0.95, 1})
+    end
+
+    local hint = "Enter / Click to confirm    Esc to quit"
+    drawShadowedText(fonts.help, hint, (w - fonts.help:getWidth(hint)) * 0.5, h - 86, {0.96, 0.78, 0.36, 1})
+end
+
+local function drawOptionsScreen()
+    local w, h = love.graphics.getWidth(), love.graphics.getHeight()
+    love.graphics.setColor(0.02, 0.03, 0.05, 0.82)
+    love.graphics.rectangle("fill", 0, 0, w, h)
+
+    local title = "Options"
+    drawShadowedText(fonts.title, title, (w - fonts.title:getWidth(title)) * 0.5, h * 0.18, {0.98, 0.76, 0.3, 1})
+
+    local lines = {
+        "Audio sliders, visual filters, and accessibility toggles",
+        "will live here soon. For now, enjoy the neon bones!",
+    }
+    for i, line in ipairs(lines) do
+        local textWidth = fonts.body:getWidth(line)
+        local x = (w - textWidth) * 0.5
+        local y = h * 0.4 + (i - 1) * (fonts.body:getHeight() + 12)
+        drawShadowedText(fonts.body, line, x, y, {0.86, 0.88, 0.95, 1})
+    end
+
+    local hint = "Press ESC or Right Click to return"
+    drawShadowedText(fonts.help, hint, (w - fonts.help:getWidth(hint)) * 0.5, h - 86, {0.96, 0.78, 0.36, 1})
+end
+
+local function drawGuideScreen()
+    local w, h = love.graphics.getWidth(), love.graphics.getHeight()
+    love.graphics.setColor(0.02, 0.03, 0.05, 0.82)
+    love.graphics.rectangle("fill", 0, 0, w, h)
+
+    local title = "How to Play"
+    drawShadowedText(fonts.title, title, (w - fonts.title:getWidth(title)) * 0.5, h * 0.18, {0.98, 0.76, 0.3, 1})
+
+    local lines = {
+        "Roll six dice. Lock scoring dice to build your combo streak.",
+        "Bank points with Q to keep them safe, but busting erases turn points.",
+        "Hot dice! Score all dice in a roll and you'll throw all six again.",
+        "Chase high scores like a Balatro run—risky plays pay the neon bills.",
+    }
+    for i, line in ipairs(lines) do
+        local textWidth = fonts.body:getWidth(line)
+        local x = (w - textWidth) * 0.5
+        local y = h * 0.38 + (i - 1) * (fonts.body:getHeight() + 10)
+        drawShadowedText(fonts.body, line, x, y, {0.86, 0.88, 0.95, 1})
+    end
+
+    local hint = "Press ESC or Right Click to return"
+    drawShadowedText(fonts.help, hint, (w - fonts.help:getWidth(hint)) * 0.5, h - 86, {0.96, 0.78, 0.36, 1})
+end
+
+local function activateMenuItem(index)
+    local item = mainMenu.items[index]
+    if not item then return end
+
+    if item.id == "start" then
+        startNewGame()
+        setGameState("game")
+    elseif item.id == "options" then
+        setGameState("options")
+    elseif item.id == "guide" then
+        setGameState("guide")
+    elseif item.id == "exit" then
+        love.event.quit()
+    end
 end
 
 local function parseTextureAtlasXML(xmlPath, imagePath)
@@ -635,20 +838,23 @@ local function drawScore()
     end
     local bgWidth = textWidth + panelPadding * 2
     local bgHeight = lineSpacing * #lines + panelPadding * 2 - 6
-    local x = 24
-    local y = 24
+    local x = 32
+    local y = 36
 
-    love.graphics.setColor(0, 0, 0, 0.45)
-    love.graphics.rectangle("fill", x - panelPadding, y - panelPadding, bgWidth, bgHeight, 14, 14)
+    love.graphics.setColor(0.05, 0.1, 0.18, 0.82)
+    love.graphics.rectangle("fill", x - panelPadding, y - panelPadding, bgWidth, bgHeight, 18, 18)
+    love.graphics.setColor(0.98, 0.78, 0.32, 0.9)
+    love.graphics.setLineWidth(2)
+    love.graphics.rectangle("line", x - panelPadding, y - panelPadding, bgWidth, bgHeight, 18, 18)
+    love.graphics.setLineWidth(1)
 
-    love.graphics.setColor(1, 1, 1, 1)
     for index, line in ipairs(lines) do
-        love.graphics.print(line, x, y + (index - 1) * lineSpacing)
+        drawShadowedText(fonts.score, line, x, y + (index - 1) * lineSpacing, {0.92, 0.94, 0.98, 1})
     end
 end
 
 function love.load()
-    love.graphics.setBackgroundColor(0.07, 0.09, 0.11)
+    love.graphics.setBackgroundColor(0.04, 0.05, 0.08)
     love.graphics.setDefaultFilter("linear", "linear", 4)
     boardImage = love.graphics.newImage("asset/board.png")
     boardImage:setFilter("linear", "linear")
@@ -667,20 +873,20 @@ function love.load()
         buildDiceSpriteSheet()
     end
 
-    love.window.setTitle("Farkle Prototype")
+    love.window.setTitle("Neon Farkle Prototype")
 
     love.math.setRandomSeed(os.time())
 
+    fonts.title = love.graphics.newFont(64)
+    fonts.menu = love.graphics.newFont(30)
+    fonts.body = love.graphics.newFont(22)
     fonts.help = love.graphics.newFont(18)
     fonts.score = love.graphics.newFont(28)
     love.graphics.setFont(fonts.help)
 
-    for i = 1, numDice do
-        table.insert(dice, createDie())
-    end
-
     updateLayout()
-    refreshScores()
+    startNewGame()
+    setGameState("menu")
 end
 
 function love.resize()
@@ -714,13 +920,19 @@ local function updateDie(die, dt)
 end
 
 function love.update(dt)
+    globalTime = globalTime + dt
+    if gameState ~= "game" then
+        updateMenu(dt)
+    end
     for _, die in ipairs(dice) do
         updateDie(die, dt)
     end
 end
 
 function love.draw()
-    love.graphics.setColor(1, 1, 1, 1)
+    drawAmbientBackground()
+
+    love.graphics.setColor(1, 1, 1, 0.92)
     love.graphics.draw(boardImage, boardX, boardY, 0, boardScale, boardScale)
 
     table.sort(dice, function(a, b)
@@ -731,8 +943,16 @@ function love.draw()
         drawDie(die)
     end
 
-    drawHelp()
-    drawScore()
+    if gameState == "game" then
+        drawHelp()
+        drawScore()
+    elseif gameState == "menu" then
+        drawMainMenu()
+    elseif gameState == "options" then
+        drawOptionsScreen()
+    elseif gameState == "guide" then
+        drawGuideScreen()
+    end
 end
 
 function rollAllDice()
@@ -751,6 +971,30 @@ function rollAllDice()
 end
 
 function love.keypressed(key)
+    if gameState == "menu" then
+        local total = #mainMenu.items
+        if total == 0 then return end
+
+        if key == "w" or key == "up" then
+            mainMenu.selectedIndex = ((mainMenu.selectedIndex - 2) % total) + 1
+        elseif key == "s" or key == "down" then
+            mainMenu.selectedIndex = (mainMenu.selectedIndex % total) + 1
+        elseif key == "return" or key == "space" or key == "f" then
+            activateMenuItem(mainMenu.selectedIndex)
+        elseif key == "escape" then
+            love.event.quit()
+        end
+        return
+    elseif gameState == "options" or gameState == "guide" then
+        if key == "escape" or key == "backspace" or key == "space" or key == "return" then
+            setGameState("menu")
+        end
+        return
+    elseif key == "escape" then
+        setGameState("menu")
+        return
+    end
+
     if key == "w" or key == "up" then
         moveSelection(-1)
     elseif key == "s" or key == "down" then
@@ -765,9 +1009,9 @@ function love.keypressed(key)
             die.locked = not die.locked
             refreshScores()
         end
-    elseif key == "f" or key == "space" or key == "return" then -- Score & Continue / Roll
+    elseif key == "f" or key == "space" or key == "return" then
         attemptRoll()
-    elseif key == "q" then -- Score & Pass
+    elseif key == "q" then
         attemptBank()
     end
 end
@@ -799,10 +1043,44 @@ local function toggleDieLock(x, y)
     return clicked
 end
 
+local function pointInBounds(px, py, bounds)
+    return px >= bounds.x and px <= bounds.x + bounds.w and py >= bounds.y and py <= bounds.y + bounds.h
+end
+
 function love.mousepressed(x, y, button)
+    if gameState == "menu" then
+        if button == 1 then
+            for index, bounds in ipairs(mainMenu.itemBounds or {}) do
+                if pointInBounds(x, y, bounds) then
+                    mainMenu.selectedIndex = index
+                    activateMenuItem(index)
+                    return
+                end
+            end
+        elseif button == 2 then
+            love.event.quit()
+        end
+        return
+    elseif gameState == "options" or gameState == "guide" then
+        if button == 1 or button == 2 then
+            setGameState("menu")
+        end
+        return
+    end
+
     if button == 1 then
         toggleDieLock(x, y)
     elseif button == 2 then
         attemptRoll()
+    end
+end
+
+function love.mousemoved(x, y)
+    if gameState ~= "menu" then return end
+    for index, bounds in ipairs(mainMenu.itemBounds or {}) do
+        if pointInBounds(x, y, bounds) then
+            mainMenu.selectedIndex = index
+            return
+        end
     end
 end
