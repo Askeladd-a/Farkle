@@ -24,6 +24,69 @@ local diceFrameSets = {}
 local diceFrameMeta = {}
 local diceFrameImages = {}
 local diceFrameCount = 0
+local diceSpriteSize = 64
+local selectionParticleImages = {}
+
+local function loadSelectionParticleImages()
+    selectionParticleImages = {}
+    local names = {"light_01.png", "light_02.png", "light_03.png"}
+    for _, filename in ipairs(names) do
+        local path = "asset/" .. filename
+        if love.filesystem.getInfo(path) then
+            local image = love.graphics.newImage(path)
+            image:setFilter("linear", "linear")
+            table.insert(selectionParticleImages, image)
+        end
+    end
+end
+
+local function createSelectionParticleSystem()
+    if #selectionParticleImages == 0 then
+        return nil
+    end
+    local ps = love.graphics.newParticleSystem(selectionParticleImages[1], 128)
+    if #selectionParticleImages > 1 then
+        ps:setImages(table.unpack(selectionParticleImages))
+    end
+    ps:setEmitterLifetime(-1)
+    ps:setParticleLifetime(0.35, 0.85)
+    ps:setEmissionRate(90)
+    ps:setSizeVariation(0.8)
+    ps:setSizes(0.45, 0.1)
+    ps:setSpeed(22, 60)
+    ps:setLinearAcceleration(-28, -28, 28, 28)
+    ps:setRadialAcceleration(-18, 18)
+    ps:setTangentialAcceleration(-26, 26)
+    ps:setSpin(-1.2, 1.2)
+    ps:setSpinVariation(1)
+    ps:setColors(
+        0.95, 0.85, 0.35, 0.82,
+        0.4, 0.65, 1.0, 0.35
+    )
+    ps:setEmissionArea("uniform", diceSpriteSize * 0.25, diceSpriteSize * 0.25, 0, true)
+    ps:setRelativeRotation(true)
+    ps:stop()
+    return ps
+end
+
+local function updateSelectionParticles(die, dt)
+    if not die.particles then
+        return
+    end
+    local shouldBeActive = die.locked and not die.spent and not die.isRolling
+    if shouldBeActive then
+        if not die.selectionParticlesActive then
+            die.selectionParticlesActive = true
+            die.particles:reset()
+            die.particles:start()
+            die.particles:emit(28)
+        end
+    elseif die.selectionParticlesActive then
+        die.selectionParticlesActive = false
+        die.particles:stop()
+    end
+    die.particles:update(dt)
+end
 local scores = {roll = 0, selection = 0}
 
 local players = {
@@ -48,11 +111,43 @@ local turn = {
 local aiController = AIController.new()
 
 local customCursor
+local function installCustomCursor()
+    if customCursor then
+        love.mouse.setCursor(customCursor)
+    end
+end
 
 local gameState = "menu"
 local globalTime = 0
 local selectedDie = 1 -- index of the die selected for keyboard input
 local selection = {points = 0, valid = false, dice = 0}
+local uiScale = 1
+local currentFontScale = nil
+local baseFontSizes = {
+    title = 64,
+    menu = 30,
+    body = 22,
+    help = 18,
+    score = 28,
+}
+
+local function refreshFontsForScale(scale)
+    scale = math.max(0.75, math.min(scale, 1.6))
+    if currentFontScale and math.abs(currentFontScale - scale) < 0.02 then
+        return
+    end
+    currentFontScale = scale
+
+    local function sized(size)
+        return math.max(12, math.floor(size * scale + 0.5))
+    end
+
+    fonts.title = love.graphics.newFont(sized(baseFontSizes.title))
+    fonts.menu = love.graphics.newFont(sized(baseFontSizes.menu))
+    fonts.body = love.graphics.newFont(sized(baseFontSizes.body))
+    fonts.help = love.graphics.newFont(sized(baseFontSizes.help))
+    fonts.score = love.graphics.newFont(sized(baseFontSizes.score))
+end
 
 local refreshScores
 
@@ -129,6 +224,9 @@ end
 
 local rollAllDice
 local startNewGame
+local generateDicePositions
+local attemptRoll
+local attemptBank
 
 local mainMenu = Menu.new({
     {id = "start", label = "Start Game", blurb = "Roll the bones and chase a streak."},
@@ -144,6 +242,7 @@ local function setGameState(state)
         turn.pendingRoll = false
         aiController:reset()
     end
+    installCustomCursor()
 end
 
 local function getAvailableFaceCount()
@@ -266,7 +365,6 @@ end
 
 local tileWidth, tileHeight = 96, 48
 local diceSize = 64
-local diceSpriteSize = 64
 local boardAnchorX, boardAnchorY = 0.5, 0.36
 local gridWidth, gridHeight = 6, 4
 local rollDurationRange = {0.45, 0.8}
@@ -596,11 +694,12 @@ local function getActionButtons()
     end
 
     local metrics = actionButtonMetrics
-    local width = metrics.width
-    local height = metrics.height
-    local spacing = metrics.spacing
-    local marginX = metrics.marginX
-    local marginY = metrics.marginY
+    local scale = uiScale
+    local width = metrics.width * scale
+    local height = metrics.height * scale
+    local spacing = metrics.spacing * scale
+    local marginX = metrics.marginX * scale
+    local marginY = metrics.marginY * scale
 
     local screenWidth = love.graphics.getWidth()
     local screenHeight = love.graphics.getHeight()
@@ -668,7 +767,9 @@ local function createDie()
         screenX = 0,
         screenY = 0,
         animations = {},
-        animationImages = {}
+        animationImages = {},
+        particles = createSelectionParticleSystem(),
+        selectionParticlesActive = false,
     }
     die.startX, die.startY, die.startZ = die.x, die.y, die.z
     die.targetX, die.targetY, die.targetZ = die.x, die.y, die.z
@@ -683,7 +784,7 @@ local function createDie()
     return die
 end
 
-function startNewGame()
+local function startNewGame()
     dicePositions = nil
     dice = {}
     for i = 1, numDice do
@@ -717,12 +818,18 @@ end
 
 local function updateLayout()
     local sw, sh = love.graphics.getWidth(), love.graphics.getHeight()
-    local margin = 24
+    local minDim = math.min(sw, sh)
+    local margin = math.max(12, minDim * 0.04)
     local scaleX = (sw - margin * 2) / boardImage:getWidth()
     local scaleY = (sh - margin * 2) / boardImage:getHeight()
     boardScale = math.min(scaleX, scaleY)
     boardX = (sw - boardImage:getWidth() * boardScale) * 0.5
     boardY = (sh - boardImage:getHeight() * boardScale) * 0.5
+
+    local referenceW, referenceH = 1280, 720
+    local scaleW = sw / referenceW
+    local scaleH = sh / referenceH
+    uiScale = math.max(0.75, math.min(math.max(scaleW, scaleH), 1.5))
 end
 
 local function drawDie(die)
@@ -735,6 +842,16 @@ local function drawDie(die)
     local scale = size / diceSpriteSize
 
     die.screenX, die.screenY = x, y
+
+    if die.particles and (die.selectionParticlesActive or die.particles:getCount() > 0) then
+        love.graphics.push()
+        love.graphics.translate(x, y)
+        local prevBlendMode, prevAlphaMode = love.graphics.getBlendMode()
+        love.graphics.setBlendMode("add", "alphamultiply")
+        love.graphics.draw(die.particles, 0, 0, 0, boardScale, boardScale)
+        love.graphics.setBlendMode(prevBlendMode or "alpha", prevAlphaMode or "alphamultiply")
+        love.graphics.pop()
+    end
 
     love.graphics.push()
     love.graphics.translate(x, y)
@@ -803,12 +920,15 @@ local function drawHelp()
     love.graphics.setFont(fonts.help)
     local width = fonts.help:getWidth(text)
     local height = fonts.help:getHeight()
+    local margin = 28 * uiScale
+    local paddingX = 22 * uiScale
+    local paddingY = 12 * uiScale
     local x = love.graphics.getWidth() * 0.5 - width * 0.5
-    local y = love.graphics.getHeight() - height - 24
+    local y = love.graphics.getHeight() - height - margin
     love.graphics.setColor(0.03, 0.07, 0.12, 0.78)
-    love.graphics.rectangle("fill", x - 18, y - 10, width + 36, height + 20, 16, 16)
+    love.graphics.rectangle("fill", x - paddingX, y - paddingY, width + paddingX * 2, height + paddingY * 2, 16 * uiScale, 16 * uiScale)
     love.graphics.setColor(0.98, 0.8, 0.3, 0.9)
-    love.graphics.rectangle("line", x - 18, y - 10, width + 36, height + 20, 16, 16)
+    love.graphics.rectangle("line", x - paddingX, y - paddingY, width + paddingX * 2, height + paddingY * 2, 16 * uiScale, 16 * uiScale)
     drawShadowedText(fonts.help, text, x, y, {0.92, 0.94, 0.98, 1})
 end
 
@@ -837,12 +957,13 @@ local function drawActionButtons()
             borderColor = {1, 0.83, 0.36, 1}
         end
 
+        local corner = 18 * uiScale
         love.graphics.setColor(baseColor)
-        love.graphics.rectangle("fill", button.x, button.y, button.width, button.height, 18, 18)
+        love.graphics.rectangle("fill", button.x, button.y, button.width, button.height, corner, corner)
 
         love.graphics.setColor(borderColor)
-        love.graphics.setLineWidth(2)
-        love.graphics.rectangle("line", button.x, button.y, button.width, button.height, 18, 18)
+        love.graphics.setLineWidth(2 * uiScale)
+        love.graphics.rectangle("line", button.x, button.y, button.width, button.height, corner, corner)
         love.graphics.setLineWidth(1)
 
         local labelFont = fonts.body
@@ -850,7 +971,7 @@ local function drawActionButtons()
         love.graphics.setFont(labelFont)
         local labelWidth = labelFont:getWidth(button.label)
         local labelX = button.x + (button.width - labelWidth) * 0.5
-        local labelY = button.y + 14
+        local labelY = button.y + 14 * uiScale
         drawShadowedText(labelFont, button.label, labelX, labelY, textColor, {0, 0, 0, 0.55})
 
         if button.description then
@@ -858,7 +979,7 @@ local function drawActionButtons()
             local descWidth = helpFont:getWidth(button.description)
             local descHeight = helpFont:getHeight()
             local descX = button.x + (button.width - descWidth) * 0.5
-            local descY = button.y + button.height - descHeight - 12
+            local descY = button.y + button.height - descHeight - 12 * uiScale
             drawShadowedText(helpFont, button.description, descX, descY, subTextColor, {0, 0, 0, 0.45})
         end
     end
@@ -1067,8 +1188,8 @@ end
 
 local function drawScore()
     love.graphics.setFont(fonts.score)
-    local panelPadding = 16
-    local lineSpacing = fonts.score:getHeight() + 6
+    local panelPadding = 16 * uiScale
+    local lineSpacing = fonts.score:getHeight() + 6 * uiScale
 
     local current = getCurrentPlayer()
     local lines = {}
@@ -1117,15 +1238,15 @@ local function drawScore()
         textWidth = math.max(textWidth, fonts.score:getWidth(line))
     end
     local bgWidth = textWidth + panelPadding * 2
-    local bgHeight = lineSpacing * #lines + panelPadding * 2 - 6
-    local x = 32
-    local y = 36
+    local bgHeight = lineSpacing * #lines + panelPadding * 2 - 6 * uiScale
+    local x = 32 * uiScale
+    local y = 36 * uiScale
 
     love.graphics.setColor(0.05, 0.1, 0.18, 0.82)
-    love.graphics.rectangle("fill", x - panelPadding, y - panelPadding, bgWidth, bgHeight, 18, 18)
+    love.graphics.rectangle("fill", x - panelPadding, y - panelPadding, bgWidth, bgHeight, 18 * uiScale, 18 * uiScale)
     love.graphics.setColor(0.98, 0.78, 0.32, 0.9)
-    love.graphics.setLineWidth(2)
-    love.graphics.rectangle("line", x - panelPadding, y - panelPadding, bgWidth, bgHeight, 18, 18)
+    love.graphics.setLineWidth(2 * uiScale)
+    love.graphics.rectangle("line", x - panelPadding, y - panelPadding, bgWidth, bgHeight, 18 * uiScale, 18 * uiScale)
     love.graphics.setLineWidth(1)
 
     for index, line in ipairs(lines) do
@@ -1139,17 +1260,15 @@ function love.load()
     boardImage = love.graphics.newImage("asset/board.png")
     boardImage:setFilter("linear", "linear")
 
-    if love.filesystem.getInfo("asset/cursorGauntlet.png") then
-        local ok, cursorOrErr = pcall(function()
-            local hotspotX, hotspotY = 0, 0
-            return love.mouse.newCursor("asset/cursorGauntlet.png", hotspotX, hotspotY)
-        end)
-        if ok and cursorOrErr then
-            customCursor = cursorOrErr
-            love.mouse.setCursor(customCursor)
-        else
-            customCursor = nil
-        end
+    local ok, cursorOrErr = pcall(function()
+        local hotspotX, hotspotY = 0, 0
+        return love.mouse.newCursor("asset/cursorGauntlet.png", hotspotX, hotspotY)
+    end)
+    if ok and cursorOrErr then
+        customCursor = cursorOrErr
+        installCustomCursor()
+    else
+        customCursor = nil
     end
 
     diceImages = {}
@@ -1162,6 +1281,8 @@ function love.load()
         end
     end
 
+    loadSelectionParticleImages()
+
     if not loadDiceFramesFromAtlas() then
         buildDiceSpriteSheet()
     end
@@ -1170,20 +1291,22 @@ function love.load()
 
     love.math.setRandomSeed(os.time())
 
-    fonts.title = love.graphics.newFont(64)
-    fonts.menu = love.graphics.newFont(30)
-    fonts.body = love.graphics.newFont(22)
-    fonts.help = love.graphics.newFont(18)
-    fonts.score = love.graphics.newFont(28)
-    love.graphics.setFont(fonts.help)
-
     updateLayout()
+    refreshFontsForScale(uiScale)
+    love.graphics.setFont(fonts.help)
     startNewGame()
     setGameState("menu")
 end
 
 function love.resize()
     updateLayout()
+    refreshFontsForScale(uiScale)
+end
+
+function love.focus(focused)
+    if focused then
+        installCustomCursor()
+    end
 end
 
 local function updateDie(die, dt)
@@ -1210,6 +1333,7 @@ local function updateDie(die, dt)
             die.isRolling = false
         end
     end
+    updateSelectionParticles(die, dt)
 end
 
 function love.update(dt)
@@ -1260,7 +1384,7 @@ function love.draw()
     end
 end
 
-function rollAllDice()
+local function rollAllDice()
     if winnerIndex then return end
     turn.pendingRoll = false
     turn.pendingRollDelay = 0
