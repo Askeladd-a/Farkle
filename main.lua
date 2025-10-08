@@ -39,12 +39,39 @@ local function easeOutCubic(t)
     return 1 - inv * inv * inv
 end
 
-local function randomGridPosition()
-    local padding = 0.6
-    local ix = love.math.random() * (gridWidth - padding * 2) + padding
-    local iy = love.math.random() * (gridHeight - padding * 2) + padding
-    local iz = love.math.random() * 0.4
-    return ix, iy, iz
+-- Genera posizioni predefinite ben distanziate per i dadi
+local function generateDicePositions(num)
+    local positions = {}
+    local grid = {
+        {1,1}, {5,1}, {1,3}, {5,3}, {3,2}, {3,1}
+    }
+    for i = 1, num do
+        local gx, gy = grid[i][1], grid[i][2]
+        local ix = gx + love.math.random() * 0.2 - 0.1
+        local iy = gy + love.math.random() * 0.2 - 0.1
+        local iz = love.math.random() * 0.4
+        table.insert(positions, {ix, iy, iz})
+    end
+    -- Mischia le posizioni
+    for i = #positions, 2, -1 do
+        local j = love.math.random(1, i)
+        positions[i], positions[j] = positions[j], positions[i]
+    end
+    return positions
+end
+
+local dicePositions = nil
+
+local function randomGridPosition(idx)
+    if dicePositions and dicePositions[idx] then
+        return table.unpack(dicePositions[idx])
+    else
+        local padding = 0.6
+        local ix = love.math.random() * (gridWidth - padding * 2) + padding
+        local iy = love.math.random() * (gridHeight - padding * 2) + padding
+        local iz = love.math.random() * 0.4
+        return ix, iy, iz
+    end
 end
 
 local function computeScoreFromCounts(counts)
@@ -85,19 +112,13 @@ local function refreshScores()
     end)
 end
 
-local function startRoll(die)
-    if diceFrameCount == 0 then
-        return
-    end
-
-    if die.locked then
-        return
-    end
-
+local function startRoll(die, idx)
+    if diceFrameCount == 0 then return end
+    if die.locked then return end
     local maxFace = math.max(1, math.min(6, diceFrameCount))
     die.value = love.math.random(1, maxFace)
     die.startX, die.startY, die.startZ = die.x, die.y, die.z
-    die.targetX, die.targetY, die.targetZ = randomGridPosition()
+    die.targetX, die.targetY, die.targetZ = randomGridPosition(idx)
     die.animTime = 0
     die.animDuration = love.math.random() * (rollDurationRange[2] - rollDurationRange[1]) + rollDurationRange[1]
     die.spinSpeed = love.math.random(6, 12)
@@ -169,8 +190,14 @@ local function drawDie(die)
 
     local hasBorderFrames = diceFrameMeta.border ~= nil
     if die.locked and not hasBorderFrames then
+        -- Glow giallo
         love.graphics.setColor(0.9, 0.78, 0.2, 0.55)
         love.graphics.rectangle("fill", -half * 1.1, -half * 1.1, half * 2.2, half * 2.2, 10, 10)
+        -- Bordo giallo spesso
+        love.graphics.setColor(0.95, 0.85, 0.1, 1)
+        love.graphics.setLineWidth(6)
+        love.graphics.rectangle("line", -half * 1.12, -half * 1.12, half * 2.24, half * 2.24, 12, 12)
+        love.graphics.setLineWidth(1)
     end
 
     love.graphics.setColor(0, 0, 0, 0.25)
@@ -379,8 +406,9 @@ function love.draw()
 end
 
 local function rollAllDice()
-    for _, die in ipairs(dice) do
-        startRoll(die)
+    dicePositions = generateDicePositions(#dice)
+    for idx, die in ipairs(dice) do
+        startRoll(die, idx)
     end
     refreshScores()
 end
