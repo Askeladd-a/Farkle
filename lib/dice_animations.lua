@@ -16,7 +16,7 @@ function DiceAnimations.init()
     -- Se non esiste, usa un'immagine di fallback generata
     local success, image = pcall(love.graphics.newImage, "images/dice_spritesheet.png")
     
-    if success then
+    if success and image then
         diceImage = image
         print("Caricato spritesheet dei dadi da file")
     else
@@ -29,6 +29,12 @@ function DiceAnimations.init()
     -- Supporta sia layout 1x6 che 2x3
     local frameWidth = 64
     local frameHeight = 64
+    
+    if not diceImage then
+        print("Errore: Immagine del dado non caricata")
+        return false
+    end
+    
     diceGrid = anim8.newGrid(frameWidth, frameHeight, diceImage:getWidth(), diceImage:getHeight())
     
     -- Determina il layout dello spritesheet
@@ -36,33 +42,44 @@ function DiceAnimations.init()
     local imageHeight = diceImage:getHeight()
     local isHorizontalLayout = imageWidth > imageHeight * 2  -- Se è molto più largo che alto
     
-    if isHorizontalLayout then
-        -- Layout orizzontale 1x6 (384x64)
-        animations = {
-            rolling = anim8.newAnimation(diceGrid('1-6', 1), 0.1, 'loop'),
-            face1 = anim8.newAnimation(diceGrid(1, 1), 1),
-            face2 = anim8.newAnimation(diceGrid(2, 1), 1),
-            face3 = anim8.newAnimation(diceGrid(3, 1), 1),
-            face4 = anim8.newAnimation(diceGrid(4, 1), 1),
-            face5 = anim8.newAnimation(diceGrid(5, 1), 1),
-            face6 = anim8.newAnimation(diceGrid(6, 1), 1),
-        }
+    -- Crea le animazioni con protezione dagli errori
+    local success, result = pcall(function()
+        if isHorizontalLayout then
+            -- Layout orizzontale 1x6 (384x64)
+            return {
+                rolling = anim8.newAnimation(diceGrid('1-6', 1), 0.1),
+                face1 = anim8.newAnimation(diceGrid(1, 1), 1),
+                face2 = anim8.newAnimation(diceGrid(2, 1), 1),
+                face3 = anim8.newAnimation(diceGrid(3, 1), 1),
+                face4 = anim8.newAnimation(diceGrid(4, 1), 1),
+                face5 = anim8.newAnimation(diceGrid(5, 1), 1),
+                face6 = anim8.newAnimation(diceGrid(6, 1), 1),
+            }
+        else
+            -- Layout griglia 2x3 (192x128)
+            -- Mappa le posizioni della griglia ai valori dei dadi
+            -- Il tuo spritesheet: (1,1)=6, (2,1)=3, (1,2)=5, (2,2)=1, (1,3)=2, (2,3)=4
+            return {
+                -- Animazione di lancio usando tutte le posizioni disponibili
+                rolling = anim8.newAnimation(diceGrid('1-2', '1-3'), 0.1),
+                
+                -- Mappa i valori dei dadi alle posizioni nella griglia
+                face1 = anim8.newAnimation(diceGrid(2, 2), 1),  -- Posizione (2,2) = 1 pip
+                face2 = anim8.newAnimation(diceGrid(1, 3), 1),  -- Posizione (1,3) = 2 pip
+                face3 = anim8.newAnimation(diceGrid(2, 1), 1),  -- Posizione (2,1) = 3 pip
+                face4 = anim8.newAnimation(diceGrid(2, 3), 1),  -- Posizione (2,3) = 4 pip
+                face5 = anim8.newAnimation(diceGrid(1, 2), 1),  -- Posizione (1,2) = 5 pip
+                face6 = anim8.newAnimation(diceGrid(1, 1), 1),  -- Posizione (1,1) = 6 pip
+            }
+        end
+    end)
+    
+    if success then
+        animations = result
+        print("Animazioni create con successo")
     else
-        -- Layout griglia 2x3 (192x128)
-        -- Mappa le posizioni della griglia ai valori dei dadi
-        -- Il tuo spritesheet: (1,1)=6, (2,1)=3, (1,2)=5, (2,2)=1, (1,3)=2, (2,3)=4
-        animations = {
-            -- Animazione di lancio usando tutte le posizioni disponibili
-            rolling = anim8.newAnimation(diceGrid('1-2', '1-3'), 0.1, 'loop'),
-            
-            -- Mappa i valori dei dadi alle posizioni nella griglia
-            face1 = anim8.newAnimation(diceGrid(2, 2), 1),  -- Posizione (2,2) = 1 pip
-            face2 = anim8.newAnimation(diceGrid(1, 3), 1),  -- Posizione (1,3) = 2 pip
-            face3 = anim8.newAnimation(diceGrid(2, 1), 1),  -- Posizione (2,1) = 3 pip
-            face4 = anim8.newAnimation(diceGrid(2, 3), 1),  -- Posizione (2,3) = 4 pip
-            face5 = anim8.newAnimation(diceGrid(1, 2), 1),  -- Posizione (1,2) = 5 pip
-            face6 = anim8.newAnimation(diceGrid(1, 1), 1),  -- Posizione (1,1) = 6 pip
-        }
+        print("Errore nella creazione delle animazioni: " .. tostring(result))
+        animations = {}
     end
 end
 
@@ -174,7 +191,9 @@ function DiceAnimations.update(dt)
     if not animations then return end
     
     for _, anim in pairs(animations) do
-        anim:update(dt)
+        if anim and anim.update then
+            pcall(function() anim:update(dt) end)
+        end
     end
 end
 
@@ -200,8 +219,8 @@ function DiceAnimations.drawDie(die, x, y, scale, rotation)
         animation = DiceAnimations.getFaceAnimation(die.value)
     end
     
-    if animation then
-        animation:draw(diceImage, -32, -32)  -- Centra l'animazione
+    if animation and animation.draw then
+        pcall(function() animation:draw(diceImage, -32, -32) end)  -- Centra l'animazione
     end
     
     love.graphics.pop()
