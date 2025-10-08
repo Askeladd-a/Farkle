@@ -364,7 +364,7 @@ local function bustTurn()
 end
 
 local tileWidth, tileHeight = 96, 48
-local diceSize = 64
+local diceSize = 56
 local boardAnchorX, boardAnchorY = 0.5, 0.36
 local gridWidth, gridHeight = 6, 4
 local rollDurationRange = {0.45, 0.8}
@@ -381,7 +381,7 @@ local function easeOutCubic(t)
 end
 
 -- Genera posizioni predefinite ben distanziate per i dadi
-local function generateDicePositions(num)
+generateDicePositions = function(num)
     local positions = {}
     -- Tray piu' grande: due righe in basso
     local trayY1 = gridHeight - 0.6
@@ -819,7 +819,7 @@ end
 local function updateLayout()
     local sw, sh = love.graphics.getWidth(), love.graphics.getHeight()
     local minDim = math.min(sw, sh)
-    local margin = math.max(12, minDim * 0.04)
+    local margin = math.max(12, minDim * 0.025)
     local scaleX = (sw - margin * 2) / boardImage:getWidth()
     local scaleY = (sh - margin * 2) / boardImage:getHeight()
     boardScale = math.min(scaleX, scaleY)
