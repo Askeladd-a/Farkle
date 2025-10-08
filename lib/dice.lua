@@ -111,66 +111,31 @@ function Dice.arrangeScatter(tray, roll, opts)
     local cx = tray.x + tray.w * 0.5
     local cy = tray.y + tray.h * 0.5
     local n = #roll
-    local minDist = Dice.SIZE + 16  -- Molto aumentato per evitare sovrapposizioni
-    local maxRadius = math.min(tray.w, tray.h) * 0.35 - Dice.RADIUS
     
-    -- Disposizione più realistica e casuale
+    -- ALGORITMO SEMPLICE E AFFIDABILE: Griglia con rumore casuale
+    local gridCols = 3
+    local gridRows = 2
+    local gridSpacing = Dice.SIZE + 24  -- Spaziatura generosa
+    
+    -- Calcola la griglia centrata
+    local gridStartX = cx - (gridCols - 1) * gridSpacing / 2
+    local gridStartY = cy - (gridRows - 1) * gridSpacing / 2
+    
     for i, die in ipairs(roll) do
-        local attempts = 0
-        local placed = false
+        local col = ((i - 1) % gridCols) + 1
+        local row = math.floor((i - 1) / gridCols) + 1
         
-        -- Prova a posizionare il dado in modo casuale
-        while not placed and attempts < 50 do
-            -- Posizione casuale con distribuzione più naturale
-            local angle = random() * math.pi * 2
-            local radius = random() * maxRadius * (0.3 + random() * 0.7)  -- Più concentrato al centro
-            
-            -- Aggiungi un po' di rumore per rendere più naturale
-            local noiseX = (random() - 0.5) * Dice.SIZE * 0.3
-            local noiseY = (random() - 0.5) * Dice.SIZE * 0.3
-            
-            die.x = cx + math.cos(angle) * radius + noiseX
-            die.y = cy + math.sin(angle) * radius + noiseY
-            
-            -- Angolo più casuale per un aspetto più naturale
-            die.angle = (random() - 0.5) * math.pi * 0.8  -- Fino a 72 gradi di rotazione
-            
-            -- Verifica che non si sovrapponga troppo con altri dadi
-            local tooClose = false
-            for j = 1, i - 1 do
-                local dx = die.x - roll[j].x
-                local dy = die.y - roll[j].y
-                local dist = math.sqrt(dx * dx + dy * dy)
-                if dist < minDist then
-                    tooClose = true
-                    break
-                end
-            end
-            
-            if not tooClose then
-                placed = true
-            end
-            
-            attempts = attempts + 1
-        end
+        -- Posizione base della griglia
+        local baseX = gridStartX + (col - 1) * gridSpacing
+        local baseY = gridStartY + (row - 1) * gridSpacing
         
-        -- Se non è riuscito a posizionare, usa una disposizione a griglia semplice
-        if not placed then
-            -- Disposizione a griglia 2x3 per 6 dadi
-            local gridCols = 3
-            local gridRows = 2
-            local gridSpacing = Dice.SIZE + 20  -- Spaziatura fissa
-            
-            local col = ((i - 1) % gridCols) + 1
-            local row = math.floor((i - 1) / gridCols) + 1
-            
-            local gridStartX = cx - (gridCols - 1) * gridSpacing / 2
-            local gridStartY = cy - (gridRows - 1) * gridSpacing / 2
-            
-            die.x = gridStartX + (col - 1) * gridSpacing
-            die.y = gridStartY + (row - 1) * gridSpacing
-            die.angle = (random() - 0.5) * 0.3
-        end
+        -- Aggiungi rumore casuale per rendere più naturale
+        local noiseX = (random() - 0.5) * 16  -- Rumore limitato
+        local noiseY = (random() - 0.5) * 16
+        
+        die.x = baseX + noiseX
+        die.y = baseY + noiseY
+        die.angle = (random() - 0.5) * 0.4  -- Rotazione limitata
         
         if not opts.keepRollingState then
             die.isRolling = false
@@ -179,30 +144,13 @@ function Dice.arrangeScatter(tray, roll, opts)
             die.locked = false
         end
     end
-
-    -- Iterazioni di separazione molto aggressive per evitare sovrapposizioni
-    for _ = 1, 50 do  -- Molto aumentato per separazione definitiva
-        for i = 1, n do
-            for j = i + 1, n do
-                local dx = roll[i].x - roll[j].x
-                local dy = roll[i].y - roll[j].y
-                local d = math.sqrt(dx * dx + dy * dy)
-                if d < minDist then
-                    local push = (minDist - d) * 0.8  -- Molto aumentato per separazione definitiva
-                    local nx, ny = dx / (d + 0.01), dy / (d + 0.01)
-                    roll[i].x = roll[i].x + nx * push
-                    roll[i].y = roll[i].y + ny * push
-                    roll[j].x = roll[j].x - nx * push
-                    roll[j].y = roll[j].y - ny * push
-                end
-            end
-        end
-    end
     
     -- Assicurati che tutti i dadi siano dentro il tray
     for _, die in ipairs(roll) do
         clampDie(die, tray)
     end
+    
+    print("Dadi disposti in griglia 2x3 con rumore casuale")
 end
 
 local function drawPip(x, y, r)

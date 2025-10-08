@@ -18,11 +18,12 @@ function DiceAnimations.init()
     
     if success and image then
         diceImage = image
-        print("Caricato spritesheet dei dadi da file - Dimensioni: " .. image:getWidth() .. "x" .. image:getHeight())
+        print("✅ Caricato spritesheet dei dadi da file - Dimensioni: " .. image:getWidth() .. "x" .. image:getHeight())
     else
         -- Crea un'immagine di fallback se lo spritesheet non esiste
         diceImage = DiceAnimations.createFallbackImage()
-        print("Creato spritesheet di fallback per i dadi - Dimensioni: " .. diceImage:getWidth() .. "x" .. diceImage:getHeight())
+        print("⚠️ Creato spritesheet di fallback per i dadi - Dimensioni: " .. diceImage:getWidth() .. "x" .. diceImage:getHeight())
+        print("   Assicurati che 'images/dice_spritesheet.png' esista!")
     end
     
     -- Crea la griglia per lo spritesheet
@@ -227,20 +228,33 @@ function DiceAnimations.drawDie(die, x, y, scale, rotation)
         animation = DiceAnimations.getFaceAnimation(die.value)
     end
     
-    -- TEMPORANEAMENTE: Usa sempre il fallback per assicurare visibilità
-    print("Disegno dado con fallback - Valore: " .. (die.value or "nil") .. " - isRolling: " .. tostring(die.isRolling))
-    
-    -- Fallback: disegna un dado bianco solido e ben visibile
-    love.graphics.setColor(1, 1, 1, 1)  -- Bianco puro
-    love.graphics.rectangle("fill", -32, -32, 64, 64, 8, 8)
-    
-    -- Bordo nero spesso per definizione
-    love.graphics.setColor(0, 0, 0, 1)
-    love.graphics.setLineWidth(3)
-    love.graphics.rectangle("line", -32, -32, 64, 64, 8, 8)
-    
-    -- Disegna i pip neri e ben visibili
-    DiceAnimations.drawSimplePips(die.value or 1)
+    -- Prova prima le animazioni, poi fallback se necessario
+    if animation and animation.draw then
+        local success = pcall(function() 
+            animation:draw(diceImage, -32, -32)  -- Centra l'animazione
+        end)
+        if success then
+            print("Animazione disegnata con successo per dado valore " .. (die.value or "nil"))
+        else
+            print("Errore nel disegno dell'animazione per dado valore " .. (die.value or "nil"))
+            -- Fallback: disegna un dado bianco solido
+            love.graphics.setColor(1, 1, 1, 1)  -- Bianco puro
+            love.graphics.rectangle("fill", -32, -32, 64, 64, 8, 8)
+            love.graphics.setColor(0, 0, 0, 1)
+            love.graphics.setLineWidth(3)
+            love.graphics.rectangle("line", -32, -32, 64, 64, 8, 8)
+            DiceAnimations.drawSimplePips(die.value or 1)
+        end
+    else
+        print("Nessuna animazione disponibile per dado valore " .. (die.value or "nil") .. " - isRolling: " .. tostring(die.isRolling))
+        -- Fallback: disegna un dado bianco solido
+        love.graphics.setColor(1, 1, 1, 1)  -- Bianco puro
+        love.graphics.rectangle("fill", -32, -32, 64, 64, 8, 8)
+        love.graphics.setColor(0, 0, 0, 1)
+        love.graphics.setLineWidth(3)
+        love.graphics.rectangle("line", -32, -32, 64, 64, 8, 8)
+        DiceAnimations.drawSimplePips(die.value or 1)
+    end
     
     love.graphics.pop()
     return true

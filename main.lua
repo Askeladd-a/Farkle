@@ -195,14 +195,17 @@ local function setupLayout(width, height)
     if not stackedLayout then
         availableHeight = height - marginY * 2 - hudSpacing.totalHeight - hudToBoardSpacing - messageSpacing - messageMinHeight
     end
-    local minBoardHeight = math.max(height * 0.3, Dice.SIZE * 2.4)
+    
+    -- RENDI LA BOARD PIÙ GRANDE: Aumenta le dimensioni minime
+    local minBoardHeight = math.max(height * 0.45, Dice.SIZE * 3.5)  -- Aumentato da 0.3 a 0.45
     local maxBoardHeight = math.max(availableHeight, minBoardHeight)
 
-    local boardWidth = math.min(boardWidthArea, maxBoardHeight * (4 / 3))
+    -- RENDI LA BOARD PIÙ LARGA: Usa più spazio disponibile
+    local boardWidth = math.min(boardWidthArea * 0.9, maxBoardHeight * (4 / 3))  -- Usa 90% dello spazio
     local boardHeight = boardWidth * (3 / 4)
     if boardHeight > maxBoardHeight then
         boardHeight = maxBoardHeight
-        boardWidth = math.min(boardWidthArea, boardHeight * (4 / 3))
+        boardWidth = math.min(boardWidthArea * 0.9, boardHeight * (4 / 3))  -- Usa 90% dello spazio
     end
 
     boardX = (width - boardWidth) / 2
