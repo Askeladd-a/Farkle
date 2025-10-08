@@ -1,12 +1,12 @@
-local anim8 = require("lib.anim8")␊
-␊
-local diceAtlasConfig␊
-do␊
+local anim8 = require("lib.anim8")
+
+local diceAtlasConfig
+do
     local ok, atlas = pcall(require, "asset.dice_atlas")
-    if ok then␊
-        diceAtlasConfig = atlas␊
-    end␊
-end␊
+    if ok then
+        diceAtlasConfig = atlas
+    end
+end
 
 local boardImage
 local boardScale = 1
@@ -24,9 +24,9 @@ local scores = {roll = 0, selection = 0}
 local turn = {
     banked = 0, -- punti messi in cassaforte
     temp = 0,   -- punti accumulati nel turno attuale
-    bust = false, -- true se l'ultimo tiro è stato un bust
-    canContinue = false, -- true se c'è una selezione valida per continuare
-    canPass = false,     -- true se si può bancare
+    bust = false, -- true se l'ultimo tiro e' stato un bust
+    canContinue = false, -- true se c'e' una selezione valida per continuare
+    canPass = false,     -- true se si puo' bancare
 }
 local selectedDie = 1 -- indice del dado selezionato per input tastiera
 local selection = {points = 0, valid = false, dice = 0}
@@ -130,10 +130,37 @@ end
 -- Genera posizioni predefinite ben distanziate per i dadi
 local function generateDicePositions(num)
     local positions = {}
-    -- Tray più grande: due righe in basso
+    -- Tray piu' grande: due righe in basso
     local trayY1 = gridHeight - 0.6
     local trayY2 = gridHeight - 1.3
-@@ -140,291 +164,531 @@ local function randomGridPosition(idx)
+    local trayX = {1, 2, 3, 4, 5, 6}
+    for i = 1, num do
+        local gx = trayX[((i-1)%6)+1] or (i * (gridWidth-1)/(num-1))
+        local row = math.floor((i-1)/6)
+        local iy = (row == 0 and trayY1 or trayY2) + love.math.random() * 0.18
+        local ix = gx + love.math.random() * 0.22 - 0.11
+        local iz = love.math.random() * 0.2
+        table.insert(positions, {ix, iy, iz})
+    end
+    -- Mischia le posizioni
+    for i = #positions, 2, -1 do
+        local j = love.math.random(1, i)
+        positions[i], positions[j] = positions[j], positions[i]
+    end
+    return positions
+end
+
+local dicePositions = nil
+
+local function randomGridPosition(idx)
+    if dicePositions and dicePositions[idx] then
+        return unpack(dicePositions[idx])
+    else
+        local padding = 0.6
+        local ix = love.math.random() * (gridWidth - padding * 2) + padding
+        local iy = love.math.random() * (gridHeight - padding * 2) + padding
+        local iz = love.math.random() * 0.4
+        return ix, iy, iz
     end
 end
 
@@ -398,7 +425,7 @@ local function drawDie(die)
     love.graphics.setLineWidth(1)
 end
 
-local function drawHelp()␊
+local function drawHelp()
     local text = "SPACE/F o clic destro: segna e tira | Q: banca | Clic sinistro sul dado: blocca/sblocca"
     love.graphics.setFont(fonts.help)
     local width = fonts.help:getWidth(text)
@@ -665,7 +692,25 @@ local function updateDie(die, dt)
     for _, animation in pairs(die.animations) do
         animation:update(dt)
     end
-@@ -450,95 +714,96 @@ local function updateDie(die, dt)
+    if die.animTime < die.animDuration then
+        die.animTime = math.min(die.animDuration, die.animTime + dt)
+        local t = die.animDuration == 0 and 1 or die.animTime / die.animDuration
+        local eased = easeOutCubic(t)
+        die.x = die.startX + (die.targetX - die.startX) * eased
+        die.y = die.startY + (die.targetY - die.startY) * eased
+        die.z = die.startZ + (die.targetZ - die.startZ) * eased + math.sin(t * math.pi) * die.bounce * (1 - t)
+        die.spin = die.spin + die.spinSpeed * dt * 60
+        die.jitter = die.jitter + dt * 4
+    else
+        local wobble = math.sin(love.timer.getTime() * 2 + die.jitter) * 0.005
+        die.z = die.targetZ + wobble
+        if die.isRolling then
+            for _, animation in pairs(die.animations) do
+                animation:gotoFrame(die.value)
+                animation:pause()
+            end
+            die.isRolling = false
+        end
     end
 end
 
