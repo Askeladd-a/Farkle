@@ -22,13 +22,13 @@ local diceFrameImages = {}
 local diceFrameCount = 0
 local scores = {roll = 0, selection = 0}
 local turn = {
-    banked = 0, -- punti messi in cassaforte
-    temp = 0,   -- punti accumulati nel turno attuale
-    bust = false, -- true se l'ultimo tiro e' stato un bust
-    canContinue = false, -- true se c'e' una selezione valida per continuare
-    canPass = false,     -- true se si puo' bancare
+    banked = 0, -- points stored in the bank
+    temp = 0,   -- points accumulated during the current turn
+    bust = false, -- true if the last roll was a bust
+    canContinue = false, -- true if there is a valid selection to keep rolling
+    canPass = false,     -- true if banking is allowed
 }
-local selectedDie = 1 -- indice del dado selezionato per input tastiera
+local selectedDie = 1 -- index of the die selected for keyboard input
 local selection = {points = 0, valid = false, dice = 0}
 local function ensureSelectedDieValid()
     if #dice == 0 then return end
@@ -66,7 +66,7 @@ local function getAvailableFaceCount()
     return 6
 end
 
--- Funzione: rolla solo i dadi non bloccati
+-- Rolls only dice that are not locked
 local function rollUnlockedDice()
     local toRoll = {}
     for _, die in ipairs(dice) do
@@ -83,7 +83,7 @@ local function rollUnlockedDice()
     detectBust()
 end
 
--- Funzione: banca i punti temporanei
+-- Banks the temporary points
 local function bankPoints()
     turn.banked = turn.banked + turn.temp
     turn.temp = 0
@@ -96,7 +96,7 @@ local function bankPoints()
     rollAllDice()
 end
 
--- Funzione: resetta il turno dopo bust
+-- Resets the turn after a bust
 local function bustTurn()
     turn.temp = 0
     turn.bust = true
@@ -326,7 +326,6 @@ local function startRoll(die, idx)
         end
     end
 end
-end
 
 local function createDie()
     local die = {
@@ -388,10 +387,10 @@ local function drawDie(die)
 
     local hasBorderFrames = diceFrameMeta.border ~= nil
     if die.locked and not hasBorderFrames then
-        -- Glow giallo
+        -- Yellow glow
         love.graphics.setColor(0.9, 0.78, 0.2, 0.55)
         love.graphics.rectangle("fill", -half * 1.1, -half * 1.1, half * 2.2, half * 2.2, 10, 10)
-        -- Bordo giallo spesso
+        -- Thick yellow border
         love.graphics.setColor(0.95, 0.85, 0.1, 1)
         love.graphics.setLineWidth(6)
         love.graphics.rectangle("line", -half * 1.12, -half * 1.12, half * 2.24, half * 2.24, 12, 12)
@@ -426,7 +425,7 @@ local function drawDie(die)
 end
 
 local function drawHelp()
-    local text = "SPACE/F o clic destro: segna e tira | Q: banca | Clic sinistro sul dado: blocca/sblocca"
+    local text = "SPACE/F or right click: score & roll | Q: bank | Left click die: lock/unlock"
     love.graphics.setFont(fonts.help)
     local width = fonts.help:getWidth(text)
     local height = fonts.help:getHeight()
@@ -614,21 +613,21 @@ local function drawScore()
     local selectionText
     if selection.dice > 0 then
         if selection.valid then
-            selectionText = string.format("Selezione: %d", selection.points)
+            selectionText = string.format("Selection: %d", selection.points)
         else
-            selectionText = "Selezione: 0 (non valida)"
+            selectionText = "Selection: 0 (invalid)"
         end
     else
-        selectionText = "Selezione: 0"
+        selectionText = "Selection: 0"
     end
     local lines = {
-        string.format("Punti potenziali: %d", scores.roll),
+        string.format("Potential points: %d", scores.roll),
         selectionText,
-        string.format("Punti turno: %d", turn.temp),
-        string.format("Cassaforte: %d", turn.banked),
+        string.format("Turn points: %d", turn.temp),
+        string.format("Banked total: %d", turn.banked),
     }
     if turn.bust then
-        table.insert(lines, "BUST! Nessun punteggio")
+        table.insert(lines, "BUST! No score")
     end
     local textWidth = 0
     for _, line in ipairs(lines) do
