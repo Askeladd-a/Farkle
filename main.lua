@@ -19,7 +19,15 @@ local diceSheet
 local diceFrameSets = {}
 local diceFrameMeta = {}
 local diceFrameCount = 0
-local scores = {roll = 0, locked = 0}
+local scores = {roll = 0, locked = 0, banked = 0}
+local turn = {
+    banked = 0, -- punti messi in cassaforte
+    temp = 0,   -- punti temporanei del turno
+    bust = false, -- true se il turno è bust
+    canContinue = false, -- true se si può continuare a rollare
+    canPass = false,     -- true se si può bancare
+}
+local selectedDie = 1 -- indice del dado selezionato per input tastiera
 
 local tileWidth, tileHeight = 96, 48
 local diceSize = 64
@@ -42,14 +50,16 @@ end
 -- Genera posizioni predefinite ben distanziate per i dadi
 local function generateDicePositions(num)
     local positions = {}
-    local grid = {
-        {1,1}, {5,1}, {1,3}, {5,3}, {3,2}, {3,1}
-    }
+    -- Tray più grande: due righe in basso
+    local trayY1 = gridHeight - 0.6
+    local trayY2 = gridHeight - 1.3
+    local trayX = {1, 2, 3, 4, 5, 6}
     for i = 1, num do
-        local gx, gy = grid[i][1], grid[i][2]
-        local ix = gx + love.math.random() * 0.2 - 0.1
-        local iy = gy + love.math.random() * 0.2 - 0.1
-        local iz = love.math.random() * 0.4
+        local gx = trayX[((i-1)%6)+1] or (i * (gridWidth-1)/(num-1))
+        local row = math.floor((i-1)/6)
+        local iy = (row == 0 and trayY1 or trayY2) + love.math.random() * 0.18
+        local ix = gx + love.math.random() * 0.22 - 0.11
+        local iz = love.math.random() * 0.2
         table.insert(positions, {ix, iy, iz})
     end
     -- Mischia le posizioni
@@ -95,14 +105,15 @@ local function computeScoreFromCounts(counts)
     return total
 end
 
+local scoring = require("lib.scoring")
 local function calculateScoreForDice(predicate)
-    local counts = {0, 0, 0, 0, 0, 0}
+    local vals = {}
     for _, die in ipairs(dice) do
         if not predicate or predicate(die) then
-            counts[die.value] = counts[die.value] + 1
+            table.insert(vals, die.value)
         end
     end
-    return computeScoreFromCounts(counts)
+    return scoring.scoreSelection(vals).points
 end
 
 local function refreshScores()
