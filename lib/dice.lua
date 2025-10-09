@@ -270,6 +270,24 @@ local function drawPips(die)
     end
 end
 
+-- Draws a rotated selection outline with soft glow around the die
+local function drawSelectionOverlay(die)
+    love.graphics.push()
+    love.graphics.translate(die.x, die.y)
+    love.graphics.rotate(die.angle or 0)
+    local w = Dice.SIZE + 8
+    local h = Dice.SIZE + 8
+    -- Soft outer glow
+    love.graphics.setColor(0.98, 0.86, 0.28, 0.25)
+    love.graphics.setLineWidth(8)
+    love.graphics.rectangle("line", -w/2, -h/2, w, h, 14, 14)
+    -- Crisp inner outline
+    love.graphics.setColor(0.98, 0.86, 0.28, 0.9)
+    love.graphics.setLineWidth(3)
+    love.graphics.rectangle("line", -w/2, -h/2, w, h, 14, 14)
+    love.graphics.pop()
+end
+
 function Dice.drawDie(die)
     -- Ombra sempre visibile
     love.graphics.setColor(0, 0, 0, 0.35)
@@ -283,12 +301,7 @@ function Dice.drawDie(die)
         local success = DiceAnimations.drawDie(die, die.x, die.y, scale, die.angle)
         
         if success then
-            -- Indicatore selezione
-            if die.locked then
-                love.graphics.setColor(0.95, 0.82, 0.35, 0.85)
-                love.graphics.setLineWidth(3)
-                love.graphics.rectangle("line", die.x - Dice.RADIUS - 4, die.y - Dice.RADIUS - 4, Dice.SIZE + 8, Dice.SIZE + 8, 14, 14)
-            end
+            if die.locked then drawSelectionOverlay(die) end
             return
         end
     end
@@ -333,12 +346,7 @@ function Dice.drawDie(die)
 
     love.graphics.pop()
 
-    -- Indicatore selezione
-    if die.locked then
-        love.graphics.setColor(0.95, 0.82, 0.35, 0.85)
-        love.graphics.setLineWidth(3)
-        love.graphics.rectangle("line", die.x - Dice.RADIUS - 4, die.y - Dice.RADIUS - 4, Dice.SIZE + 8, Dice.SIZE + 8, 14, 14)
-    end
+    if die.locked then drawSelectionOverlay(die) end
 end
 
 function Dice.recenterDice(roll, oldTray, newTray)
@@ -420,7 +428,8 @@ function Dice.drawKeptOnHinge(board, kept, isTopRow)
     local endX = board.x + board.w - marginX
     if endX <= startX then return end
 
-    local hingeY = board.y + board.h * 0.68
+    local hingeRatio = board.hingeRatio or 0.68
+    local hingeY = board.y + board.h * hingeRatio
     local y = hingeY + (isTopRow and -(Dice.RADIUS + 8) or (Dice.RADIUS + 8))
 
     local availableW = endX - startX

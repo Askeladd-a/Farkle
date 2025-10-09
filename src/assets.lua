@@ -41,26 +41,17 @@ function Assets.refreshFonts(width, height)
     tiny  = math.max(12, math.floor(base * 0.018)),
   }
 
+  -- Prefer a clean display face for titles only; fall back to system font
   local titlePaths = {
-    "fonts/Gregorian.ttf","fonts/Gregorian.otf","fonts/gregorian.ttf","fonts/gregorian.otf",
-    "images/Gregorian.ttf","images/Gregorian.otf","images/gregorian.ttf","images/gregorian.otf",
-    "fonts/rothenbg.ttf","images/rothenbg.ttf",
-    "fonts/Pentiment_Textura.otf","images/Pentiment_Textura.otf",
-    "fonts/teutonic1.ttf","images/teutonic1.ttf",
     "fonts/Cinzel-Regular.ttf","images/Cinzel-Regular.ttf",
   }
 
-  local bodyPaths = {
-    "fonts/Gregorian.ttf","fonts/Gregorian.otf","fonts/gregorian.ttf","fonts/gregorian.otf",
-    "images/Gregorian.ttf","images/Gregorian.otf","images/gregorian.ttf","images/gregorian.otf",
-    "fonts/teutonic1.ttf","images/teutonic1.ttf",
-    "fonts/Cinzel-Regular.ttf","images/Cinzel-Regular.ttf",
-    "fonts/Pentiment_Textura.otf","images/Pentiment_Textura.otf",
-  }
+  -- Use readable system sans for all UI text
+  local bodyPaths = {}
 
   local fonts = {
     title = loadChain(titlePaths, sizes.title),
-    h2    = loadChain(titlePaths, sizes.h2),
+    h2    = loadChain(bodyPaths,  sizes.h2),  -- UI headings use sans for readability
     body  = loadChain(bodyPaths,  sizes.body),
     small = loadChain(bodyPaths,  sizes.small),
     tiny  = love.graphics.newFont(sizes.tiny),
