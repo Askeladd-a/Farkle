@@ -186,32 +186,36 @@ local function refreshFonts(width, height)
 
     -- Titoli: preferisci Gregorian, poi rothenbg, pentiment, teutonic, cinzel
     fonts.title = loadChain({
+        "fonts/Gregorian.ttf","fonts/Gregorian.otf","fonts/gregorian.ttf","fonts/gregorian.otf",
         "images/Gregorian.ttf","images/Gregorian.otf","images/gregorian.ttf","images/gregorian.otf",
-        "images/rothenbg.ttf",
-        "images/Pentiment_Textura.otf",
-        "images/teutonic1.ttf",
-        "images/Cinzel-Regular.ttf",
+        "fonts/rothenbg.ttf","images/rothenbg.ttf",
+        "fonts/Pentiment_Textura.otf","images/Pentiment_Textura.otf",
+        "fonts/teutonic1.ttf","images/teutonic1.ttf",
+        "fonts/Cinzel-Regular.ttf","images/Cinzel-Regular.ttf",
     }, titleSize)
     fonts.h2 = loadChain({
+        "fonts/Gregorian.ttf","fonts/Gregorian.otf","fonts/gregorian.ttf","fonts/gregorian.otf",
         "images/Gregorian.ttf","images/Gregorian.otf","images/gregorian.ttf","images/gregorian.otf",
-        "images/rothenbg.ttf",
-        "images/Pentiment_Textura.otf",
-        "images/teutonic1.ttf",
-        "images/Cinzel-Regular.ttf",
+        "fonts/rothenbg.ttf","images/rothenbg.ttf",
+        "fonts/Pentiment_Textura.otf","images/Pentiment_Textura.otf",
+        "fonts/teutonic1.ttf","images/teutonic1.ttf",
+        "fonts/Cinzel-Regular.ttf","images/Cinzel-Regular.ttf",
     }, h2Size)
 
     -- Corpo: preferisci Gregorian, poi teutonic, cinzel, pentiment
     fonts.body = loadChain({
+        "fonts/Gregorian.ttf","fonts/Gregorian.otf","fonts/gregorian.ttf","fonts/gregorian.otf",
         "images/Gregorian.ttf","images/Gregorian.otf","images/gregorian.ttf","images/gregorian.otf",
-        "images/teutonic1.ttf",
-        "images/Cinzel-Regular.ttf",
-        "images/Pentiment_Textura.otf",
+        "fonts/teutonic1.ttf","images/teutonic1.ttf",
+        "fonts/Cinzel-Regular.ttf","images/Cinzel-Regular.ttf",
+        "fonts/Pentiment_Textura.otf","images/Pentiment_Textura.otf",
     }, bodySize)
     fonts.small = loadChain({
+        "fonts/Gregorian.ttf","fonts/Gregorian.otf","fonts/gregorian.ttf","fonts/gregorian.otf",
         "images/Gregorian.ttf","images/Gregorian.otf","images/gregorian.ttf","images/gregorian.otf",
-        "images/teutonic1.ttf",
-        "images/Cinzel-Regular.ttf",
-        "images/Pentiment_Textura.otf",
+        "fonts/teutonic1.ttf","images/teutonic1.ttf",
+        "fonts/Cinzel-Regular.ttf","images/Cinzel-Regular.ttf",
+        "fonts/Pentiment_Textura.otf","images/Pentiment_Textura.otf",
     }, smallSize)
     fonts.tiny  = love.graphics.newFont(tinySize)
 
