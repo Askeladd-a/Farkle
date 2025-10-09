@@ -1252,6 +1252,11 @@ function love.update(dt)
             end
         end
     end)
+        -- Gestisci quit ritardato dopo sfx
+        if game.pendingQuitAt and love.timer.getTime() >= game.pendingQuitAt then
+            game.pendingQuitAt = nil
+            love.event.quit()
+        end
     if not ok then
         print("[CRASH] love.update: " .. tostring(err))
         local f = io.open("crash_report.txt", "a")
