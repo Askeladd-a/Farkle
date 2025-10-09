@@ -49,7 +49,7 @@ game.layout = {
     message = {},
 }
 
-local BUTTON_LABELS = {"Roll Dice", "Bank Points", "Guide", "Main Menu"}
+local BUTTON_LABELS = {"Roll Dice", "Bank Points", "Guide", "Options"}
 
 local fonts = {}
 local winningScore = 5000
@@ -64,6 +64,7 @@ game.uiOptions = {
     hoverIndex = nil,
     menuW = 200,
     itemH = 32,
+    anchor = nil, -- optional rect {x,y,w,h} where to anchor menu
     items = {
         { label = "Toggle Guide", action = function() game.showGuide = not game.showGuide end },
         { label = "Restart Game", action = function() startNewGame() end },
@@ -613,14 +614,14 @@ local function rectsIntersect(ax, ay, aw, ah, bx, by, bw, bh)
 end
 
 local function computeOptionsMenuRect()
-    local btn = game.layout and game.layout.optionsButton
+    local btn = game.uiOptions.anchor or (game.layout and game.layout.optionsButton)
     if not btn then return nil end
     local ui = game.uiOptions
     local width, height = love.graphics.getDimensions()
     local menuW, itemH = ui.menuW, ui.itemH
     local menuH = #ui.items * itemH
 
-    -- Preferito: aperto verso il basso, allineato a destra del pulsante
+    -- Preferito: aperto verso il basso, allineato a destra del pulsante/anchor
     local menuX = btn.x + btn.w - menuW
     local menuY = btn.y + btn.h + 6
 
@@ -1043,9 +1044,9 @@ function love.update(dt)
         Dice.updateAnimations(dt)
         updateGame(dt)
         -- Aggiorna hover per tasto e menu opzioni
-        if game.state == "playing" and game.layout and game.layout.optionsButton then
+        if game.state == "playing" and game.layout and (game.layout.optionsButton or game.uiOptions.anchor) then
             local mx, my = love.mouse.getPosition()
-            local btn = game.layout.optionsButton
+            local btn = game.uiOptions.anchor or game.layout.optionsButton
             local ui = game.uiOptions
             ui.buttonHover = (mx >= btn.x and mx <= btn.x + btn.w and my >= btn.y and my <= btn.y + btn.h)
             ui.hoverIndex = nil
@@ -1154,12 +1155,13 @@ function love.mousepressed(x, y, button)
             return
         end
         -- Click su tasto Opzioni e menu
-        if game.state == "playing" and game.layout and game.layout.optionsButton then
-            local btn = game.layout.optionsButton
+        if game.state == "playing" and game.layout and (game.layout.optionsButton or game.uiOptions.anchor) then
+            local btn = game.uiOptions.anchor or game.layout.optionsButton
             local ui = game.uiOptions
             local onButton = (x >= btn.x and x <= btn.x + btn.w and y >= btn.y and y <= btn.y + btn.h)
             if onButton then
                 ui.open = not ui.open
+                if not ui.open then ui.anchor = nil end
                 return
             end
             if ui.open then
@@ -1171,11 +1173,13 @@ function love.mousepressed(x, y, button)
                         local item = ui.items[i]
                         ui.open = false
                         item.action()
+                        ui.anchor = nil
                         return
                     end
                 end
                 -- click fuori chiude
                 ui.open = false
+                ui.anchor = nil
             end
         end
 
@@ -1189,8 +1193,10 @@ function love.mousepressed(x, y, button)
                         attemptBank()
                     elseif btn.label == "Guide" then
                         game.showGuide = not game.showGuide
-                    elseif btn.label == "Main Menu" then
-                        game.state = "menu"
+                    elseif btn.label == "Options" then
+                        -- Apri menu opzioni ancorato al bottone cliccato
+                        game.uiOptions.anchor = {x = btn.x, y = btn.y, w = btn.w, h = btn.h}
+                        game.uiOptions.open = true
                     end
                     return
                 end
@@ -1234,6 +1240,7 @@ function love.keypressed(key)
     if key == "escape" then
         if game.uiOptions and game.uiOptions.open then
             game.uiOptions.open = false
+            game.uiOptions.anchor = nil
             return
         end
         love.event.quit()
