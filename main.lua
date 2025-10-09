@@ -447,13 +447,11 @@ end
 
 -- === ASSET LOADING ===
 local function decodeCursor()
-    local imageData = EmbeddedAssets.buildCursorImageData()
-    if imageData then
-        local ok, cursor = pcall(love.mouse.newCursor, imageData, 4, 4)
-        if ok then
-            customCursor = cursor
-            love.mouse.setCursor(customCursor)
-        end
+    -- Usa il cursore di sistema "arrow" ed elimina la freccina custom
+    local ok, system = pcall(love.mouse.getSystemCursor, "arrow")
+    if ok and system then
+        love.mouse.setCursor(system)
+        customCursor = nil
     end
 end
 
@@ -729,10 +727,12 @@ end
 
 local function buttonEnabled(label)
     if game.state ~= "playing" or game.winner then
+        -- Guide e Options sempre abilitati
         return label == "Options" or label == "Guide"
     end
     local player = getActivePlayer()
     if player.isAI then
+        -- Guide e Options sempre abilitati anche durante turno AI
         return label == "Guide" or label == "Options"
     end
     if label == "Roll Dice" then
@@ -1099,6 +1099,11 @@ function love.update(dt)
                         break
                     end
                 end
+                -- Se il mouse è sopra la griglia 2x2, non consumare hover: lascia pass-through
+                local grid = getButtonsBounds()
+                if grid and mx >= grid.x and mx <= grid.x + grid.w and my >= grid.y and my <= grid.y + grid.h then
+                    ui.hoverIndex = nil
+                end
             end
         end
     end)
@@ -1216,9 +1221,14 @@ function love.mousepressed(x, y, button)
                         return
                     end
                 end
-                -- click fuori chiude
-                ui.open = false
-                ui.anchor = nil
+                -- click fuori: non chiudere se stiamo cliccando sui bottoni griglia (pass-through)
+                local grid = getButtonsBounds()
+                if grid and x >= grid.x and x <= grid.x + grid.w and y >= grid.y and y <= grid.y + grid.h then
+                    -- lascia aperto
+                else
+                    ui.open = false
+                    ui.anchor = nil
+                end
             end
         end
 
