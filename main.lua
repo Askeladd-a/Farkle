@@ -457,18 +457,23 @@ local function decodeCursor()
 end
 
 local function loadMenuBackground()
-    local base = "images/brown_age"
+    local bases = {
+        "images/brown_age_by_darkwood67",
+        "images/brown_age",
+    }
     local exts = {".png", ".jpg", ".jpeg", ".webp", ".PNG", ".JPG", ".JPEG", ".WEBP"}
-    for _, ext in ipairs(exts) do
-        local ok_img, img = pcall(love.graphics.newImage, base .. ext)
-        if ok_img and img then
-            menuBackgroundImage = img
-            print("[Menu BG] Loaded: brown_age" .. ext)
-            return
+    for _, base in ipairs(bases) do
+        for _, ext in ipairs(exts) do
+            local ok_img, img = pcall(love.graphics.newImage, base .. ext)
+            if ok_img and img then
+                menuBackgroundImage = img
+                print("[Menu BG] Loaded: " .. base .. ext)
+                return
+            end
         end
     end
     menuBackgroundImage = nil
-    print("[Menu BG] brown_age image not found; using default background")
+    print("[Menu BG] background not found; using default background")
 end
 
 local function loadSelectionImages()
