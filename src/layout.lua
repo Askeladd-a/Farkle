@@ -45,11 +45,12 @@ function M.setupLayout(windowW, windowH, fonts, BUTTON_LABELS, boardImage)
     local targetBoardWidth = windowW * 0.76
     local targetBoardHeight = windowH * 0.9
     local scale = math.min(targetBoardWidth / boardW, targetBoardHeight / boardH)
+    local function round(n) return math.floor(n + 0.5) end
     local board = {
-        x = (windowW - boardW * scale) / 2,
-        y = (windowH - boardH * scale) / 2,
-        w = boardW * scale,
-        h = boardH * scale,
+        x = round((windowW - boardW * scale) / 2),
+        y = round((windowH - boardH * scale) / 2),
+        w = round(boardW * scale),
+        h = round(boardH * scale),
         scale = scale
     }
     
@@ -78,32 +79,32 @@ function M.setupLayout(windowW, windowH, fonts, BUTTON_LABELS, boardImage)
     local trayH_player = board.h * (innerFrame.bottomBottom - innerFrame.bottomTop)
 
     local trayClip_ai = {
-        x = trayX,
-        y = trayY_ai,
-        w = trayW,
-        h = trayH_ai,
+        x = round(trayX),
+        y = round(trayY_ai),
+        w = round(trayW),
+        h = round(trayH_ai),
     }
 
     local trayClip_player = {
-        x = trayX,
-        y = trayY_player,
-        w = trayW,
-        h = trayH_player,
+        x = round(trayX),
+        y = round(trayY_player),
+        w = round(trayW),
+        h = round(trayH_player),
     }
     -- Colonne dei dadi tenuti
     local keptW_ai = trayW * 0.13
     local keptW_player = keptW_ai
     local kept_ai = {
-        x = trayX,
-        y = trayY_ai,
-        w = keptW_ai,
-        h = trayH_ai,
+        x = round(trayX),
+        y = round(trayY_ai),
+        w = round(keptW_ai),
+        h = round(trayH_ai),
     }
     local kept_player = {
-        x = trayX + trayW - keptW_player,
-        y = trayY_player,
-        w = keptW_player,
-        h = trayH_player,
+        x = round(trayX + trayW - keptW_player),
+        y = round(trayY_player),
+        w = round(keptW_player),
+        h = round(trayH_player),
     }
     -- 2) Tasti: 2x2 grid a destra della board
         -- Calcola dimensioni pulsanti in base alle etichette per evitare wrapping
@@ -126,10 +127,10 @@ function M.setupLayout(windowW, windowH, fonts, BUTTON_LABELS, boardImage)
         -- Allinea il blocco dei pulsanti al bordo destro con margine costante
         local gridW = buttonW * 2 + buttonGapX
         local gridH = buttonH * 2 + buttonGapY
-        local btnStartX = windowW - gridW - paddingRight
+        local btnStartX = round(windowW - gridW - paddingRight)
         -- Centra verticalmente il blocco attorno al centro visivo della board
         local boardCenterY = board.y + board.h * 0.5
-        local btnStartY = math.floor(boardCenterY - gridH * 0.5)
+        local btnStartY = round(boardCenterY - gridH * 0.5)
         -- Garantisci che resti su schermo con padding inferiore
         btnStartY = math.min(btnStartY, windowH - gridH - paddingBottom)
         btnStartY = math.max(btnStartY, math.floor(windowH * 0.08))
@@ -137,8 +138,8 @@ function M.setupLayout(windowW, windowH, fonts, BUTTON_LABELS, boardImage)
             local col = ((i-1) % 2)
             local row = math.floor((i-1) / 2)
             buttons[i] = {
-                x = btnStartX + col * (buttonW + buttonGapX),
-                y = btnStartY + row * (buttonH + buttonGapY),
+                x = round(btnStartX + col * (buttonW + buttonGapX)),
+                y = round(btnStartY + row * (buttonH + buttonGapY)),
                 w = buttonW,
                 h = buttonH,
                 label = BUTTON_LABELS[i]
@@ -153,18 +154,20 @@ function M.setupLayout(windowW, windowH, fonts, BUTTON_LABELS, boardImage)
             h = board.h * 0.13
         }
         -- Log (bianco): in basso a sinistra, fuori dalla board
-    local logW = board.w * 0.42
-    local logH = board.h * 0.12
-    local logX = board.x - logW * 0.08 - 480    -- Sposta 12 cm (240px) a sinistra
-    local logY = board.y + board.h * 0.82
+    local logW = round(board.w * 0.42)
+    local logH = round(board.h * 0.12)
+    local logX = round(board.x - logW * 0.08 - 480)    -- Sposta 12 cm (240px) a sinistra
+    local logY = round(board.y + board.h * 0.82)
     -- Small options button (top-right corner)
     local optionsBtnSize = math.max(36, math.floor(windowW * 0.045))
     local optionsButton = {
-        x = windowW - optionsBtnSize - paddingRight,
-        y = math.max(12, windowH * 0.04),
+        x = round(windowW - optionsBtnSize - paddingRight),
+        y = round(math.max(12, windowH * 0.04)),
         w = optionsBtnSize,
         h = optionsBtnSize
     }
+    -- Provide hinge position for other renderers (center between inner trays)
+    board.hingeRatio = (innerFrame.topBottom + innerFrame.bottomTop) * 0.5
     return {
         board = board,
         trays = {

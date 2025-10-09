@@ -428,7 +428,8 @@ function Dice.drawKeptOnHinge(board, kept, isTopRow)
     local endX = board.x + board.w - marginX
     if endX <= startX then return end
 
-    local hingeY = board.y + board.h * 0.68
+    local hingeRatio = board.hingeRatio or 0.68
+    local hingeY = board.y + board.h * hingeRatio
     local y = hingeY + (isTopRow and -(Dice.RADIUS + 8) or (Dice.RADIUS + 8))
 
     local availableW = endX - startX
