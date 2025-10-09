@@ -1236,6 +1236,11 @@ function love.mousepressed(x, y, button)
             for _, btn in ipairs(game.layout.buttons) do
                 btn.enabled = buttonEnabled(btn.label)
                 if btn.enabled and inRect(x, y, btn) then
+                    -- Se il dropdown è aperto e si clicca un bottone della griglia diverso da Options, chiudi
+                    if game.uiOptions and game.uiOptions.open and btn.label ~= "Options" then
+                        game.uiOptions.open = false
+                        game.uiOptions.anchor = nil
+                    end
                     if btn.label == "Roll Dice" then
                         attemptRoll()
                     elseif btn.label == "Bank Points" then
