@@ -22,7 +22,7 @@ function M.computeHudSpacing(fonts)
     }
 end
 
-function M.setupLayout(windowW, windowH, fonts, BUTTON_LABELS, boardImage)
+function M.setupLayout(windowW, windowH, fonts, BUTTON_LABELS, boardImage, overrideInnerFrame)
     local hudSpacing = M.computeHudSpacing(fonts)
     
     -- Minimum window size for proper layout
@@ -71,6 +71,14 @@ function M.setupLayout(windowW, windowH, fonts, BUTTON_LABELS, boardImage)
         bottomTop = 545 / 1024,
         bottomBottom = 905 / 1024,
     }
+    if overrideInnerFrame then
+        innerFrame.left = overrideInnerFrame.left or innerFrame.left
+        innerFrame.right = overrideInnerFrame.right or innerFrame.right
+        innerFrame.topTop = overrideInnerFrame.topTop or innerFrame.topTop
+        innerFrame.topBottom = overrideInnerFrame.topBottom or innerFrame.topBottom
+        innerFrame.bottomTop = overrideInnerFrame.bottomTop or innerFrame.bottomTop
+        innerFrame.bottomBottom = overrideInnerFrame.bottomBottom or innerFrame.bottomBottom
+    end
     local trayW = board.w * (innerFrame.right - innerFrame.left)
     local trayX = board.x + board.w * innerFrame.left
     local trayY_ai = board.y + board.h * innerFrame.topTop
@@ -167,7 +175,8 @@ function M.setupLayout(windowW, windowH, fonts, BUTTON_LABELS, boardImage)
         h = optionsBtnSize
     }
     -- Provide hinge position for other renderers (center between inner trays)
-    board.hingeRatio = (innerFrame.topBottom + innerFrame.bottomTop) * 0.5
+    board.hingeRatio = (overrideInnerFrame and overrideInnerFrame.hingeRatio)
+        or ((innerFrame.topBottom + innerFrame.bottomTop) * 0.5)
     return {
         board = board,
         trays = {
@@ -186,7 +195,8 @@ function M.setupLayout(windowW, windowH, fonts, BUTTON_LABELS, boardImage)
         scoreboard = scoreboard,
         log = {x = logX, y = logY, w = logW, h = logH},
         optionsButton = optionsButton,
-        scale = scale
+        scale = scale,
+        innerFrame = innerFrame
     }
 end
 

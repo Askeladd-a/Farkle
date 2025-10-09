@@ -970,7 +970,11 @@ function love.load()
             print("wooden_board.png non trovato, useremo la board renderizzata")
         end
         loadMenuBackground()
-        game.layout = Layout.setupLayout(width, height, fonts, BUTTON_LABELS, boardImage)
+        -- Optional: precise inner frame measurements for wooden_board.png
+        local precise = nil
+        -- Example to enable later once we have measurements:
+        -- precise = { left=0.158, right=0.844, topTop=0.115, topBottom=0.468, bottomTop=0.548, bottomBottom=0.902, hingeRatio=0.682 }
+        game.layout = Layout.setupLayout(width, height, fonts, BUTTON_LABELS, boardImage, precise)
         setupStripes(height)
         decodeCursor()
         loadSelectionImages()
@@ -1153,7 +1157,8 @@ function love.resize(width, height)
     local ok, err = pcall(function()
         local previousLayout = snapshotLayout()
         refreshFonts(width, height)
-        game.layout = Layout.setupLayout(width, height, fonts, BUTTON_LABELS, boardImage)
+        local precise = nil
+        game.layout = Layout.setupLayout(width, height, fonts, BUTTON_LABELS, boardImage, precise)
         setupStripes(height)
         realignDiceAfterLayout(previousLayout)
     end)
