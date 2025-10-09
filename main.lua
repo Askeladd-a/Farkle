@@ -593,6 +593,62 @@ local function drawMessage()
     love.graphics.printf(game.message, messageLayout.x + padding, messageLayout.y + padding, messageLayout.w - padding * 2, "center")
 end
 
+-- === OPTIONS MENU GEOMETRY ===
+local function getButtonsBounds()
+    local buttons = game.layout and game.layout.buttons
+    if not buttons or #buttons == 0 then return nil end
+    local minX, minY = math.huge, math.huge
+    local maxX, maxY = -math.huge, -math.huge
+    for _, b in ipairs(buttons) do
+        if b.x < minX then minX = b.x end
+        if b.y < minY then minY = b.y end
+        if b.x + b.w > maxX then maxX = b.x + b.w end
+        if b.y + b.h > maxY then maxY = b.y + b.h end
+    end
+    return {x = minX, y = minY, w = maxX - minX, h = maxY - minY}
+end
+
+local function rectsIntersect(ax, ay, aw, ah, bx, by, bw, bh)
+    return not (ax + aw <= bx or bx + bw <= ax or ay + ah <= by or by + bh <= ay)
+end
+
+local function computeOptionsMenuRect()
+    local btn = game.layout and game.layout.optionsButton
+    if not btn then return nil end
+    local ui = game.uiOptions
+    local width, height = love.graphics.getDimensions()
+    local menuW, itemH = ui.menuW, ui.itemH
+    local menuH = #ui.items * itemH
+
+    -- Preferito: aperto verso il basso, allineato a destra del pulsante
+    local menuX = btn.x + btn.w - menuW
+    local menuY = btn.y + btn.h + 6
+
+    local grid = getButtonsBounds()
+    local intersectsDown = grid and rectsIntersect(menuX, menuY, menuW, menuH, grid.x, grid.y, grid.w, grid.h)
+
+    -- Se collide in basso, prova in alto
+    if intersectsDown or (menuY + menuH > height - 8) then
+        local upY = btn.y - 6 - menuH
+        local intersectsUp = grid and rectsIntersect(menuX, upY, menuW, menuH, grid.x, grid.y, grid.w, grid.h)
+        if not intersectsUp and upY >= 8 then
+            return {x = menuX, y = upY, w = menuW, h = menuH}
+        end
+        -- Se collide anche in alto, sposta a sinistra del blocco griglia
+        if grid then
+            local leftX = grid.x - menuW - 8
+            local bestY = (btn.y + btn.h + 6 + menuH <= height - 8) and (btn.y + btn.h + 6)
+                or (btn.y - 6 - menuH >= 8 and (btn.y - 6 - menuH)) or 8
+            return {x = math.max(8, leftX), y = bestY, w = menuW, h = menuH}
+        end
+        -- Fallback: clamp in alto
+        return {x = menuX, y = math.max(8, upY), w = menuW, h = menuH}
+    end
+
+    -- Nessuna collisione: usa verso il basso
+    return {x = menuX, y = menuY, w = menuW, h = menuH}
+end
+
 local function drawOptionsButtonAndMenu()
     if not game.layout or not game.layout.optionsButton then return end
     local btn = game.layout.optionsButton
@@ -610,10 +666,10 @@ local function drawOptionsButtonAndMenu()
 
     if not ui.open then return end
 
-    -- Menu a tendina sotto al pulsante
-    local menuX = btn.x + btn.w - ui.menuW
-    local menuY = btn.y + btn.h + 6
-    local menuH = #ui.items * ui.itemH
+    -- Calcola rettangolo menu evitando la griglia 2x2
+    local rect = computeOptionsMenuRect()
+    local menuX, menuY = rect.x, rect.y
+    local menuH = rect.h
     love.graphics.setColor(0, 0, 0, 0.25)
     love.graphics.rectangle("fill", menuX + 2, menuY + 3, ui.menuW, menuH, 8, 8)
     love.graphics.setColor(0.12, 0.12, 0.14, 0.98)
@@ -994,8 +1050,8 @@ function love.update(dt)
             ui.buttonHover = (mx >= btn.x and mx <= btn.x + btn.w and my >= btn.y and my <= btn.y + btn.h)
             ui.hoverIndex = nil
             if ui.open then
-                local menuX = btn.x + btn.w - ui.menuW
-                local menuY = btn.y + btn.h + 6
+                local rect = computeOptionsMenuRect()
+                local menuX, menuY = rect.x, rect.y
                 for i = 1, #ui.items do
                     local iy = menuY + (i - 1) * ui.itemH
                     if mx >= menuX and mx <= menuX + ui.menuW and my >= iy and my <= iy + ui.itemH then
@@ -1107,8 +1163,8 @@ function love.mousepressed(x, y, button)
                 return
             end
             if ui.open then
-                local menuX = btn.x + btn.w - ui.menuW
-                local menuY = btn.y + btn.h + 6
+                local rect = computeOptionsMenuRect()
+                local menuX, menuY = rect.x, rect.y
                 for i = 1, #ui.items do
                     local iy = menuY + (i - 1) * ui.itemH
                     if x >= menuX and x <= menuX + ui.menuW and y >= iy and y <= iy + ui.itemH then
