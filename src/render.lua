@@ -51,11 +51,11 @@ function M.drawScoreboard(layout, fonts, game)
     
     -- Draw name and faction
     love.graphics.setFont(fonts.body)
-    love.graphics.setColor(0.9, 0.8, 0.5) -- Gold-ish color for name
+    love.graphics.setColor(0.92, 0.84, 0.62) -- warm gold name
     love.graphics.print(player1.name, portraitX + portraitSize * 0.7, playerScore.y + playerScore.h * 0.2)
     
     love.graphics.setFont(fonts.small)
-    love.graphics.setColor(0.7, 0.65, 0.6) -- Lighter color for faction
+    love.graphics.setColor(0.82, 0.78, 0.72) -- subtle light for role label
     love.graphics.print("Dice Roller", portraitX + portraitSize * 0.7, playerScore.y + playerScore.h * 0.6)
     
     -- Draw score in a fancy medallion
@@ -63,9 +63,9 @@ function M.drawScoreboard(layout, fonts, game)
     local scoreY = playerScore.y + playerScore.h * 0.5 - portraitSize * 0.3
     
     -- Score background
-    love.graphics.setColor(0.6, 0.4, 0.2, 0.9) -- Bronze-ish color
+    love.graphics.setColor(0.58, 0.42, 0.22, 0.92) -- bronze fill
     love.graphics.circle("fill", scoreX, scoreY, portraitSize * 0.35)
-    love.graphics.setColor(0.8, 0.6, 0.3) -- Lighter bronze for the edge
+    love.graphics.setColor(0.86, 0.7, 0.36) -- bronze edge
     love.graphics.setLineWidth(2)
     love.graphics.circle("line", scoreX, scoreY, portraitSize * 0.35)
     
@@ -81,9 +81,9 @@ function M.drawScoreboard(layout, fonts, game)
         local roundScoreX = scoreX - portraitSize * 0.5
         local roundScoreY = scoreY + portraitSize * 0.4
         
-        love.graphics.setColor(0.2, 0.5, 0.8, 0.9) -- Blue-ish
+        love.graphics.setColor(0.98, 0.86, 0.38, 0.9) -- Gold tag
         love.graphics.circle("fill", roundScoreX, roundScoreY, portraitSize * 0.2)
-        love.graphics.setColor(0.4, 0.7, 0.9) -- Lighter blue
+        love.graphics.setColor(0.99, 0.92, 0.6) -- lighter gold edge
         love.graphics.circle("line", roundScoreX, roundScoreY, portraitSize * 0.2)
         
         love.graphics.setFont(fonts.small)
@@ -120,11 +120,11 @@ function M.drawScoreboard(layout, fonts, game)
     
     -- Draw name and faction
     love.graphics.setFont(fonts.body)
-    love.graphics.setColor(0.9, 0.5, 0.4) -- Reddish-gold for name
+    love.graphics.setColor(0.92, 0.84, 0.62)
     love.graphics.print(player2.name, aiPortraitX + portraitSize * 0.7, aiScore.y + aiScore.h * 0.2)
     
     love.graphics.setFont(fonts.small)
-    love.graphics.setColor(0.7, 0.5, 0.5) -- Lighter reddish for faction
+    love.graphics.setColor(0.82, 0.78, 0.72)
     love.graphics.print("Dice Master", aiPortraitX + portraitSize * 0.7, aiScore.y + aiScore.h * 0.6)
     
     -- Draw score in a fancy medallion
@@ -132,9 +132,9 @@ function M.drawScoreboard(layout, fonts, game)
     local aiScoreY = aiScore.y + aiScore.h * 0.5 - portraitSize * 0.3
     
     -- Score background
-    love.graphics.setColor(0.5, 0.2, 0.2, 0.9) -- Dark red-ish
+    love.graphics.setColor(0.58, 0.42, 0.22, 0.92)
     love.graphics.circle("fill", aiScoreX, aiScoreY, portraitSize * 0.35)
-    love.graphics.setColor(0.8, 0.4, 0.4) -- Lighter red for the edge
+    love.graphics.setColor(0.86, 0.7, 0.36)
     love.graphics.setLineWidth(2)
     love.graphics.circle("line", aiScoreX, aiScoreY, portraitSize * 0.35)
     

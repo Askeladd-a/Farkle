@@ -476,15 +476,13 @@ local function drawBackground()
         return
     end
 
-    love.graphics.setColor(0.09, 0.08, 0.11)
+    -- Solid, low-noise background to avoid banding artifacts
+    love.graphics.setColor(0.08, 0.07, 0.09)
     love.graphics.rectangle("fill", 0, 0, width, height)
-    love.graphics.setColor(0.12, 0.1, 0.14, 0.25)
-    local stripeHeight = 48
-    for i = 0, #backgroundStripes - 1 do
-        if i % 2 == 0 then
-            love.graphics.rectangle("fill", 0, i * stripeHeight, width, stripeHeight)
-        end
-    end
+    -- Subtle vignette frame for depth
+    love.graphics.setColor(0, 0, 0, 0.12)
+    love.graphics.setLineWidth(18)
+    love.graphics.rectangle("line", 9, 9, width - 18, height - 18, 12, 12)
 end
 
 local function drawBoard()
@@ -1041,13 +1039,14 @@ function love.draw()
         if layout.buttons then
             for _, btn in ipairs(layout.buttons) do
                 btn.enabled = buttonEnabled(btn.label)
-                local color = btn.enabled and {0.32, 0.46, 0.7, 0.92} or {0.32, 0.46, 0.7, 0.35}
-                love.graphics.setColor(color)
+                local fill = btn.enabled and {0.22, 0.18, 0.12, 0.96} or {0.22, 0.18, 0.12, 0.42}
+                love.graphics.setColor(fill)
                 love.graphics.rectangle("fill", btn.x, btn.y, btn.w, btn.h, 12, 12)
-                love.graphics.setColor(0.1, 0.12, 0.16)
+                -- warm edge
+                love.graphics.setColor(0.45, 0.35, 0.2)
                 love.graphics.setLineWidth(2)
                 love.graphics.rectangle("line", btn.x, btn.y, btn.w, btn.h, 12, 12)
-                love.graphics.setColor(0.95, 0.98, 1.0)
+                love.graphics.setColor(0.96, 0.92, 0.85)
                 love.graphics.setFont(fonts.body)
                 love.graphics.printf(btn.label, btn.x, btn.y + btn.h / 2 - fonts.body:getHeight() / 2, btn.w, "center")
             end
