@@ -183,27 +183,31 @@ local function refreshFonts(width, height)
         return chosen
     end
 
-    -- Titoli: preferisci rothenbg, poi pentiment, teutonic, cinzel
+    -- Titoli: preferisci Gregorian, poi rothenbg, pentiment, teutonic, cinzel
     fonts.title = loadChain({
+        "images/Gregorian.ttf","images/Gregorian.otf","images/gregorian.ttf","images/gregorian.otf",
         "images/rothenbg.ttf",
         "images/Pentiment_Textura.otf",
         "images/teutonic1.ttf",
         "images/Cinzel-Regular.ttf",
     }, titleSize)
     fonts.h2 = loadChain({
+        "images/Gregorian.ttf","images/Gregorian.otf","images/gregorian.ttf","images/gregorian.otf",
         "images/rothenbg.ttf",
         "images/Pentiment_Textura.otf",
         "images/teutonic1.ttf",
         "images/Cinzel-Regular.ttf",
     }, h2Size)
 
-    -- Corpo: evita rothenbg come primario per leggibilità/compatibilità
+    -- Corpo: preferisci Gregorian, poi teutonic, cinzel, pentiment
     fonts.body = loadChain({
+        "images/Gregorian.ttf","images/Gregorian.otf","images/gregorian.ttf","images/gregorian.otf",
         "images/teutonic1.ttf",
         "images/Cinzel-Regular.ttf",
         "images/Pentiment_Textura.otf",
     }, bodySize)
     fonts.small = loadChain({
+        "images/Gregorian.ttf","images/Gregorian.otf","images/gregorian.ttf","images/gregorian.otf",
         "images/teutonic1.ttf",
         "images/Cinzel-Regular.ttf",
         "images/Pentiment_Textura.otf",
