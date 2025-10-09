@@ -24,20 +24,39 @@ end
 
 function M.setupLayout(windowW, windowH, fonts, BUTTON_LABELS, boardImage)
     local hudSpacing = M.computeHudSpacing(fonts)
+    
+    -- Minimum window size for proper layout
+    local minWindowW = 1000
+    local minWindowH = 680
+    
+    -- Scaled dimensions for calculations
+    local effectiveW = math.max(windowW, minWindowW * windowW/minWindowW)
+    local effectiveH = math.max(windowH, minWindowH * windowH/minWindowH)
+    
     -- Board image size
     local boardW, boardH = 1024, 1024
     if boardImage and boardImage.getWidth then
         boardW = boardImage:getWidth()
         boardH = boardImage:getHeight()
     end
-    -- Scale board to fit window
-    local scale = math.min(windowW / boardW, windowH / boardH)
+    
+    -- Scale board to fit window, ensuring minimum size
+    local scale = math.min(windowW * 0.55 / boardW, windowH * 0.85 / boardH)
     local board = {
         x = (windowW - boardW * scale) / 2,
         y = (windowH - boardH * scale) / 2,
         w = boardW * scale,
         h = boardH * scale,
         scale = scale
+    }
+    
+    -- Store the window dimensions for the renderer
+    local windowDimensions = {
+        w = windowW,
+        h = windowH,
+        minW = minWindowW,
+        minH = minWindowH,
+        isSmall = (windowW < minWindowW) or (windowH < minWindowH)
     }
     -- 1) Plancine traslucide: adattate all'area delimitata dalla cornice dorata interna
     local innerFrame = {

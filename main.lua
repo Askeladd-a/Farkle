@@ -52,7 +52,7 @@ game.layout = {
 local BUTTON_LABELS = {"Roll Dice", "Bank Points", "Guide", "Main Menu"}
 
 local fonts = {}
-local winningScore = 10000
+local winningScore = 5000
 local backgroundStripes = {}
 local customCursor
 local boardImage = nil
@@ -127,82 +127,28 @@ local function safeLoadFont(path, size)
 end
 
 local function findCustomFontPath()
-    if resolvedCustomFontPath ~= nil then
-        return resolvedCustomFontPath
-    end
-
-    local filesystem = love and love.filesystem
-    if filesystem then
-        local function checkCandidate(candidate)
-            if filesystem.getInfo and filesystem.getInfo(candidate, "file") then
-                resolvedCustomFontPath = candidate
-                return true
-            end
-            return false
-        end
-
-        local predefinedCandidates = {
-            "images/rothenbg.ttf",
-            "images/Rothenbg.ttf",
-            "images/rothenbg.otf",
-            "images/Rothenbg.otf",
-        }
-
-        for _, candidate in ipairs(predefinedCandidates) do
-            if checkCandidate(candidate) then
-                return resolvedCustomFontPath
-            end
-        end
-
-        if filesystem.getDirectoryItems then
-            local ok, items = pcall(filesystem.getDirectoryItems, "images")
-            if ok and items then
-                for _, item in ipairs(items) do
-                    local lower = item:lower()
-                    if lower:find("rothenbg", 1, true) then
-                        if lower:sub(-4) == ".ttf" or lower:sub(-4) == ".otf" then
-                            local candidate = "images/" .. item
-                            if checkCandidate(candidate) then
-                                return resolvedCustomFontPath
-                            end
-                        end
-                    end
-                end
-            end
-        end
-    end
-
-    resolvedCustomFontPath = "images/rothenbg.ttf"
-    return resolvedCustomFontPath
+    -- Non lo usiamo più, usiamo direttamente loadFont con paths specifici
+    return nil
 end
 
 local function loadGameFont(size)
-    local fontPath = findCustomFontPath()
-    local font = safeLoadFont(fontPath, size)
-    if font then
-        if font.setFallbacks then
-            local defaultFont = love.graphics.newFont(size)
-            font:setFallbacks(defaultFont)
-        end
-        return font
-    end
-
-    if not loggedFontFallback then
-        print(string.format("[Font] Unable to load Rothenbg font at '%s'. Using default Love2D font.", tostring(fontPath)))
-        loggedFontFallback = true
-    end
-
+    -- Carica direttamente il font di sistema
+    -- Non ci preoccupiamo più di caricare il font personalizzato
+    print("[Font] Loading system font, size: " .. size)
     return love.graphics.newFont(size)
 end
 
 local function refreshFonts(width, height)
     local base = math.min(width, height)
 
-    fonts.title = loadGameFont(math.max(48, math.floor(base * 0.07)))
-    fonts.h2 = loadGameFont(math.max(28, math.floor(base * 0.04)))
-    fonts.body = loadGameFont(math.max(20, math.floor(base * 0.028)))
-    fonts.small = loadGameFont(math.max(16, math.floor(base * 0.022)))
-    fonts.tiny = loadGameFont(math.max(12, math.floor(base * 0.018)))
+    -- Usiamo direttamente i font di sistema
+    fonts.title = love.graphics.newFont(math.max(48, math.floor(base * 0.07)))
+    fonts.h2 = love.graphics.newFont(math.max(28, math.floor(base * 0.04)))
+    fonts.body = love.graphics.newFont(math.max(20, math.floor(base * 0.028)))
+    fonts.small = love.graphics.newFont(math.max(16, math.floor(base * 0.022)))
+    fonts.tiny = love.graphics.newFont(math.max(12, math.floor(base * 0.018)))
+    
+    print("[Font] All fonts loaded using system fonts")
 end
 
 -- === GAME STATE MANAGEMENT ===
@@ -543,20 +489,9 @@ local function withScissor(rect, drawFn)
 end
 
 local function drawTray(tray, clip)
-    if not tray then
-        return
-    end
-
-    local function drawOverlay()
-        -- Semi-transparent trays so the wooden board shows through
-        love.graphics.setColor(0.12, 0.08, 0.05, 0.75)
-        love.graphics.rectangle("fill", tray.x, tray.y, tray.w, tray.h, 18, 18)
-        love.graphics.setColor(0.12, 0.08, 0.05, 0.95)
-        love.graphics.setLineWidth(2)
-        love.graphics.rectangle("line", tray.x + 1, tray.y + 1, tray.w - 2, tray.h - 2, 18, 18)
-    end
-
-    withScissor(clip or tray, drawOverlay)
+    -- La funzione è mantenuta ma non disegna nulla
+    -- Le plancine traslucide sono ora completamente invisibili
+    return
 end
 
 local function drawHUD()
