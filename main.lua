@@ -375,6 +375,7 @@ startRoll = function()
             die.particles = nil
             table_insert(roll, die)
         end
+        Dice.initialScatter(tray, roll)
     else
         for _, die in ipairs(roll) do
             if not die.locked then
@@ -1047,8 +1048,21 @@ end
 local function drawMenu()
     local width, height = love.graphics.getDimensions()
     love.graphics.setFont(fonts.title)
-    love.graphics.setColor(0.95, 0.92, 0.85)
-    love.graphics.printf("Farkle", 0, height * 0.25, width, "center")
+    -- Testo con contorno per visibilità su sfondi chiari/scuri
+    local title = "Farkle"
+    local ty = height * 0.25
+    -- Ombra/contorno scuro
+    love.graphics.setColor(0, 0, 0, 0.75)
+    for ox = -2, 2 do
+        for oy = -2, 2 do
+            if not (ox == 0 and oy == 0) then
+                love.graphics.printf(title, ox, ty + oy, width, "center")
+            end
+        end
+    end
+    -- Riempimento chiaro caldo
+    love.graphics.setColor(0.98, 0.9, 0.6, 1)
+    love.graphics.printf(title, 0, ty, width, "center")
 
     local options = {
         {label = "Start Game", action = startNewGame},
