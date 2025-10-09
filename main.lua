@@ -49,7 +49,7 @@ game.layout = {
     message = {},
 }
 
-local BUTTON_LABELS = {"Roll Dice", "Bank Points", "Guide", "Main Menu"}
+local BUTTON_LABELS = {"Roll Dice", "Bank Points", "Guide", "Options"}
 
 local fonts = {}
 local winningScore = 5000
@@ -64,11 +64,12 @@ game.uiOptions = {
     hoverIndex = nil,
     menuW = 200,
     itemH = 32,
+    anchor = nil, -- optional rect {x,y,w,h} where to anchor menu
     items = {
         { label = "Toggle Guide", action = function() game.showGuide = not game.showGuide end },
         { label = "Restart Game", action = function() startNewGame() end },
         { label = "Main Menu",    action = function() game.state = "menu" end },
-        { label = "Quit",         action = function() love.event.quit() end },
+        { label = "Exit Game",    action = function() love.event.quit() end },
     }
 }
 
@@ -156,14 +157,44 @@ end
 local function refreshFonts(width, height)
     local base = math.min(width, height)
 
-    -- Usiamo direttamente i font di sistema
-    fonts.title = love.graphics.newFont(math.max(48, math.floor(base * 0.07)))
-    fonts.h2 = love.graphics.newFont(math.max(28, math.floor(base * 0.04)))
-    fonts.body = love.graphics.newFont(math.max(20, math.floor(base * 0.028)))
-    fonts.small = love.graphics.newFont(math.max(16, math.floor(base * 0.022)))
-    fonts.tiny = love.graphics.newFont(math.max(12, math.floor(base * 0.018)))
-    
-    print("[Font] All fonts loaded using system fonts")
+    local titleSize = math.max(48, math.floor(base * 0.07))
+    local h2Size = math.max(28, math.floor(base * 0.04))
+    local bodySize = math.max(20, math.floor(base * 0.028))
+    local smallSize = math.max(16, math.floor(base * 0.022))
+    local tinySize = math.max(12, math.floor(base * 0.018))
+
+    -- Prova a caricare il font custom rothenbg.ttf per i titoli e testi
+    local customTitle = safeLoadFont("images/rothenbg.ttf", titleSize)
+    local customH2 = safeLoadFont("images/rothenbg.ttf", h2Size)
+    local customBody = safeLoadFont("images/rothenbg.ttf", bodySize)
+    local customSmall = safeLoadFont("images/rothenbg.ttf", smallSize)
+
+    if customTitle then
+        fonts.title = customTitle
+    else
+        fonts.title = love.graphics.newFont(titleSize)
+        if not loggedFontFallback then
+            print("[Font] rothenbg.ttf non caricato per title, fallback di sistema")
+            loggedFontFallback = true
+        end
+    end
+
+    if customH2 then
+        fonts.h2 = customH2
+    else
+        fonts.h2 = love.graphics.newFont(h2Size)
+    end
+
+    -- Corpo e testi secondari: ora con rothenbg se disponibile
+    fonts.body = customBody or love.graphics.newFont(bodySize)
+    fonts.small = customSmall or love.graphics.newFont(smallSize)
+    fonts.tiny = love.graphics.newFont(tinySize)
+
+    -- Font opzionali per schermate menu (se mai usate)
+    fonts.menu = customH2 or fonts.body
+    fonts.help = love.graphics.newFont(math.max(14, math.floor(base * 0.02)))
+
+    print("[Font] Fonts: title=" .. tostring(titleSize) .. ", h2=" .. tostring(h2Size) .. ", body=" .. tostring(bodySize))
 end
 
 -- === GAME STATE MANAGEMENT ===
@@ -593,32 +624,73 @@ local function drawMessage()
     love.graphics.printf(game.message, messageLayout.x + padding, messageLayout.y + padding, messageLayout.w - padding * 2, "center")
 end
 
-local function drawOptionsButtonAndMenu()
-    if not game.layout or not game.layout.optionsButton then return end
-    local btn = game.layout.optionsButton
+-- === OPTIONS MENU GEOMETRY ===
+local function getButtonsBounds()
+    local buttons = game.layout and game.layout.buttons
+    if not buttons or #buttons == 0 then return nil end
+    local minX, minY = math.huge, math.huge
+    local maxX, maxY = -math.huge, -math.huge
+    for _, b in ipairs(buttons) do
+        if b.x < minX then minX = b.x end
+        if b.y < minY then minY = b.y end
+        if b.x + b.w > maxX then maxX = b.x + b.w end
+        if b.y + b.h > maxY then maxY = b.y + b.h end
+    end
+    return {x = minX, y = minY, w = maxX - minX, h = maxY - minY}
+end
+
+local function rectsIntersect(ax, ay, aw, ah, bx, by, bw, bh)
+    return not (ax + aw <= bx or bx + bw <= ax or ay + ah <= by or by + bh <= ay)
+end
+
+local function computeOptionsMenuRect()
+    local btn = game.uiOptions.anchor
+    if not btn then return nil end
     local ui = game.uiOptions
+    local width, height = love.graphics.getDimensions()
+    local menuW, itemH = ui.menuW, ui.itemH
+    local menuH = #ui.items * itemH
 
-    -- Pulsante circolare con icona ⋮
-    love.graphics.setColor(ui.buttonHover and 0.20 or 0.15, 0.15, 0.17, 0.95)
-    love.graphics.rectangle("fill", btn.x, btn.y, btn.w, btn.h, 8, 8)
-    love.graphics.setColor(0.1, 0.12, 0.16, 1)
-    love.graphics.setLineWidth(2)
-    love.graphics.rectangle("line", btn.x, btn.y, btn.w, btn.h, 8, 8)
-    love.graphics.setColor(0.95, 0.98, 1.0)
-    love.graphics.setFont(fonts.h2)
-    love.graphics.printf("⋮", btn.x, btn.y + (btn.h - fonts.h2:getHeight()) / 2 - 2, btn.w, "center")
-
-    if not ui.open then return end
-
-    -- Menu a tendina sotto al pulsante
-    local menuX = btn.x + btn.w - ui.menuW
+    -- Preferito: aperto verso il basso, allineato a destra del pulsante/anchor
+    local menuX = btn.x + btn.w - menuW
     local menuY = btn.y + btn.h + 6
-    local menuH = #ui.items * ui.itemH
+
+    local grid = getButtonsBounds()
+    local intersectsDown = grid and rectsIntersect(menuX, menuY, menuW, menuH, grid.x, grid.y, grid.w, grid.h)
+
+    -- Se collide in basso, prova in alto
+    if intersectsDown or (menuY + menuH > height - 8) then
+        local upY = btn.y - 6 - menuH
+        local intersectsUp = grid and rectsIntersect(menuX, upY, menuW, menuH, grid.x, grid.y, grid.w, grid.h)
+        if not intersectsUp and upY >= 8 then
+            return {x = menuX, y = upY, w = menuW, h = menuH}
+        end
+        -- Se collide anche in alto, sposta a sinistra del blocco griglia
+        if grid then
+            local leftX = grid.x - menuW - 8
+            local bestY = (btn.y + btn.h + 6 + menuH <= height - 8) and (btn.y + btn.h + 6)
+                or (btn.y - 6 - menuH >= 8 and (btn.y - 6 - menuH)) or 8
+            return {x = math.max(8, leftX), y = bestY, w = menuW, h = menuH}
+        end
+        -- Fallback: clamp in alto
+        return {x = menuX, y = math.max(8, upY), w = menuW, h = menuH}
+    end
+
+    -- Nessuna collisione: usa verso il basso
+    return {x = menuX, y = menuY, w = menuW, h = menuH}
+end
+
+local function drawOptionsButtonAndMenu()
+    local ui = game.uiOptions
+    if not ui.open then return end
+    local rect = computeOptionsMenuRect()
+    if not rect then return end
+    local menuX, menuY = rect.x, rect.y
+    local menuH = rect.h
     love.graphics.setColor(0, 0, 0, 0.25)
     love.graphics.rectangle("fill", menuX + 2, menuY + 3, ui.menuW, menuH, 8, 8)
     love.graphics.setColor(0.12, 0.12, 0.14, 0.98)
     love.graphics.rectangle("fill", menuX, menuY, ui.menuW, menuH, 8, 8)
-
     for i, item in ipairs(ui.items) do
         local iy = menuY + (i - 1) * ui.itemH
         if ui.hoverIndex == i then
@@ -633,11 +705,11 @@ end
 
 local function buttonEnabled(label)
     if game.state ~= "playing" or game.winner then
-        return label == "Main Menu" or label == "Guide"
+        return label == "Options" or label == "Guide"
     end
     local player = getActivePlayer()
     if player.isAI then
-        return label == "Guide" or label == "Main Menu"
+        return label == "Guide" or label == "Options"
     end
     if label == "Roll Dice" then
         if game.rolling then
@@ -987,15 +1059,15 @@ function love.update(dt)
         Dice.updateAnimations(dt)
         updateGame(dt)
         -- Aggiorna hover per tasto e menu opzioni
-        if game.state == "playing" and game.layout and game.layout.optionsButton then
+        if game.state == "playing" and game.layout and game.uiOptions.anchor then
             local mx, my = love.mouse.getPosition()
-            local btn = game.layout.optionsButton
+            local btn = game.uiOptions.anchor
             local ui = game.uiOptions
             ui.buttonHover = (mx >= btn.x and mx <= btn.x + btn.w and my >= btn.y and my <= btn.y + btn.h)
             ui.hoverIndex = nil
             if ui.open then
-                local menuX = btn.x + btn.w - ui.menuW
-                local menuY = btn.y + btn.h + 6
+                local rect = computeOptionsMenuRect()
+                local menuX, menuY = rect.x, rect.y
                 for i = 1, #ui.items do
                     local iy = menuY + (i - 1) * ui.itemH
                     if mx >= menuX and mx <= menuX + ui.menuW and my >= iy and my <= iy + ui.itemH then
@@ -1098,28 +1170,31 @@ function love.mousepressed(x, y, button)
             return
         end
         -- Click su tasto Opzioni e menu
-        if game.state == "playing" and game.layout and game.layout.optionsButton then
-            local btn = game.layout.optionsButton
+        if game.state == "playing" and game.layout and game.uiOptions.anchor then
+            local btn = game.uiOptions.anchor
             local ui = game.uiOptions
             local onButton = (x >= btn.x and x <= btn.x + btn.w and y >= btn.y and y <= btn.y + btn.h)
             if onButton then
                 ui.open = not ui.open
+                if not ui.open then ui.anchor = nil end
                 return
             end
             if ui.open then
-                local menuX = btn.x + btn.w - ui.menuW
-                local menuY = btn.y + btn.h + 6
+                local rect = computeOptionsMenuRect()
+                local menuX, menuY = rect.x, rect.y
                 for i = 1, #ui.items do
                     local iy = menuY + (i - 1) * ui.itemH
                     if x >= menuX and x <= menuX + ui.menuW and y >= iy and y <= iy + ui.itemH then
                         local item = ui.items[i]
                         ui.open = false
                         item.action()
+                        ui.anchor = nil
                         return
                     end
                 end
                 -- click fuori chiude
                 ui.open = false
+                ui.anchor = nil
             end
         end
 
@@ -1133,8 +1208,10 @@ function love.mousepressed(x, y, button)
                         attemptBank()
                     elseif btn.label == "Guide" then
                         game.showGuide = not game.showGuide
-                    elseif btn.label == "Main Menu" then
-                        game.state = "menu"
+                    elseif btn.label == "Options" then
+                        -- Apri menu opzioni ancorato al bottone cliccato
+                        game.uiOptions.anchor = {x = btn.x, y = btn.y, w = btn.w, h = btn.h}
+                        game.uiOptions.open = true
                     end
                     return
                 end
@@ -1178,6 +1255,7 @@ function love.keypressed(key)
     if key == "escape" then
         if game.uiOptions and game.uiOptions.open then
             game.uiOptions.open = false
+            game.uiOptions.anchor = nil
             return
         end
         love.event.quit()
