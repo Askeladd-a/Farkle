@@ -380,6 +380,7 @@ startRoll = function()
             if not die.locked then
                 die.isRolling = true
                 die.particles = nil
+                Dice.applyThrowImpulse(die, tray)
             end
         end
     end
