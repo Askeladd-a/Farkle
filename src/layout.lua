@@ -136,6 +136,14 @@ function M.setupLayout(windowW, windowH, fonts, BUTTON_LABELS, boardImage)
     local logH = board.h * 0.12
     local logX = board.x - logW * 0.08 - 480    -- Sposta 12 cm (240px) a sinistra
     local logY = board.y + board.h * 0.82
+    -- Small options button (top-right corner)
+    local optionsBtnSize = math.max(32, math.floor(windowW * 0.04))
+    local optionsButton = {
+        x = windowW - optionsBtnSize - paddingRight,
+        y = math.max(12, windowH * 0.04),
+        w = optionsBtnSize,
+        h = optionsBtnSize
+    }
     return {
         board = board,
         trays = {
@@ -153,6 +161,7 @@ function M.setupLayout(windowW, windowH, fonts, BUTTON_LABELS, boardImage)
         buttons = buttons,
         scoreboard = scoreboard,
         log = {x = logX, y = logY, w = logW, h = logH},
+        optionsButton = optionsButton,
         scale = scale
     }
 end
