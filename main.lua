@@ -163,9 +163,11 @@ local function refreshFonts(width, height)
     local smallSize = math.max(16, math.floor(base * 0.022))
     local tinySize = math.max(12, math.floor(base * 0.018))
 
-    -- Prova a caricare il font custom rothenbg.ttf per i titoli
+    -- Prova a caricare il font custom rothenbg.ttf per i titoli e testi
     local customTitle = safeLoadFont("images/rothenbg.ttf", titleSize)
     local customH2 = safeLoadFont("images/rothenbg.ttf", h2Size)
+    local customBody = safeLoadFont("images/rothenbg.ttf", bodySize)
+    local customSmall = safeLoadFont("images/rothenbg.ttf", smallSize)
 
     if customTitle then
         fonts.title = customTitle
@@ -183,9 +185,9 @@ local function refreshFonts(width, height)
         fonts.h2 = love.graphics.newFont(h2Size)
     end
 
-    -- Corpo e testi secondari con font di sistema (leggibilità)
-    fonts.body = love.graphics.newFont(bodySize)
-    fonts.small = love.graphics.newFont(smallSize)
+    -- Corpo e testi secondari: ora con rothenbg se disponibile
+    fonts.body = customBody or love.graphics.newFont(bodySize)
+    fonts.small = customSmall or love.graphics.newFont(smallSize)
     fonts.tiny = love.graphics.newFont(tinySize)
 
     -- Font opzionali per schermate menu (se mai usate)
