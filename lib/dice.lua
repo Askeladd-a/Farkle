@@ -14,9 +14,9 @@ local function randomVelocity(range)
 end
 
 -- Arcade physics parameters (top-down)
-local REST_THRESHOLD = 22
-local ANGULAR_REST = 0.6
-local BOUNCE = 0.75
+local REST_THRESHOLD = 28
+local ANGULAR_REST = 0.8
+local BOUNCE = 0.84
 
 local function biasedUpwardSpeed(range)
     -- Always upwards (negative y), with a minimum kick
@@ -33,9 +33,9 @@ function Dice.newDie(tray)
         x = cx,
         y = cy,
         angle = 0,
-        vx = randomVelocity(620),
-        vy = biasedUpwardSpeed(680),
-        av = randomVelocity(10),
+        vx = randomVelocity(900),
+        vy = biasedUpwardSpeed(1200),
+        av = randomVelocity(14),
         faceTimer = 0,
         locked = false,
         isRolling = true,
@@ -44,9 +44,9 @@ end
 
 function Dice.applyThrowImpulse(die, tray)
     -- Reimposta una spinta obliqua verso l'alto con rotazione
-    die.vx = randomVelocity(620)
-    die.vy = biasedUpwardSpeed(680)
-    die.av = die.av + randomVelocity(10)
+    die.vx = randomVelocity(900)
+    die.vy = biasedUpwardSpeed(1200)
+    die.av = die.av + randomVelocity(14)
     -- Sposta leggermente verso il basso, così il primo movimento è chiaramente in su
     die.y = math.min(tray.y + tray.h - Dice.RADIUS - 2, die.y + 4)
 end
@@ -127,10 +127,10 @@ function Dice.updateRoll(roll, tray, dt)
         die.y = die.y + die.vy * dt
         die.angle = die.angle + die.av * dt
 
-        -- Frizione
-        die.vx = die.vx * 0.985
-        die.vy = die.vy * 0.985
-        die.av = die.av * 0.97
+        -- Frizione (lieve, per mantenere energia e poi assestare)
+        die.vx = die.vx * 0.992
+        die.vy = die.vy * 0.992
+        die.av = die.av * 0.985
 
         clampDie(die, tray)
     end
@@ -159,6 +159,7 @@ function Dice.updateRoll(roll, tray, dt)
         for _, die in ipairs(roll) do
             die.isRolling = false
             die.faceTimer = math.huge
+            -- Non riposizionare (niente griglia), restano dove si sono fermati
         end
     end
 end

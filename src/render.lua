@@ -147,11 +147,11 @@ function M.drawScoreboard(layout, fonts, game)
 end
 
 function M.drawLog(layout, fonts, game)
-    -- Reposition the message to appear at the bottom center of the screen
+    -- Reposition the message to appear just above the bottom of the board area
     local msgWidth = layout.board.w * 0.7
     local msgHeight = layout.board.h * 0.1
     local msgX = layout.board.x + (layout.board.w - msgWidth) / 2
-    local msgY = layout.board.y + layout.board.h + 20 -- Below the game board
+    local msgY = layout.board.y + layout.board.h * 0.88
     
     -- Semi-transparent dark background
     love.graphics.setColor(0.1, 0.08, 0.06, 0.88)
