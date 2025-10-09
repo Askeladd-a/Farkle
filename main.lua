@@ -1190,8 +1190,9 @@ function love.draw()
         end
         -- Colonne dadi tenuti
         if layout.kept and layout.kept.ai and layout.kept.player then
-            Dice.drawKeptColumn(layout.kept.ai, game.kept.ai, true)
-            Dice.drawKeptColumn(layout.kept.player, game.kept.player, false)
+            -- Mostra i tenuti lungo l'asse delle cerniere
+            Dice.drawKeptOnHinge(layout.board, game.kept.ai, true)
+            Dice.drawKeptOnHinge(layout.board, game.kept.player, false)
         end
         -- Dadi
         drawDice()

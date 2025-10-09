@@ -410,6 +410,43 @@ function Dice.drawKeptColumn(area, kept, alignTop)
     end
 end
 
+-- Disegna i dadi tenuti in fila lungo l'asse delle cerniere (orizzontale)
+function Dice.drawKeptOnHinge(board, kept, isTopRow)
+    if not board or not kept or #kept == 0 then
+        return
+    end
+    local marginX = 60
+    local startX = board.x + marginX
+    local endX = board.x + board.w - marginX
+    if endX <= startX then return end
+
+    local hingeY = board.y + board.h * 0.68
+    local y = hingeY + (isTopRow and -(Dice.RADIUS + 8) or (Dice.RADIUS + 8))
+
+    local availableW = endX - startX
+    local defaultSpacing = Dice.SIZE + 16
+    local spacing
+    if #kept <= 1 then
+        spacing = 0
+    else
+        spacing = math.min(defaultSpacing, availableW / (#kept - 1))
+    end
+
+    local totalW = spacing * math.max(0, #kept - 1)
+    local x0 = startX + (availableW - totalW) * 0.5
+
+    for i, value in ipairs(kept) do
+        local x = (#kept == 1) and (startX + availableW * 0.5) or (x0 + (i - 1) * spacing)
+        Dice.drawDie({
+            value = value,
+            x = x,
+            y = y,
+            angle = 0,
+            locked = true,
+        })
+    end
+end
+
 -- Funzione per inizializzare le animazioni
 function Dice.initAnimations()
     DiceAnimations.init()
