@@ -96,6 +96,9 @@ local function snapshotLayout()
     }
 end
 
+-- Forward declaration so it's visible inside recomputeLayout
+local realignDiceAfterLayout
+
 local function recomputeLayout()
     if not love.graphics or not love.graphics.getWidth then return end
     local width, height = love.graphics.getDimensions()
@@ -104,7 +107,7 @@ local function recomputeLayout()
     realignDiceAfterLayout(previousLayout)
 end
 
-local function realignDiceAfterLayout(oldLayout)
+function realignDiceAfterLayout(oldLayout)
     local trays = game.layout.trays
     local previous = oldLayout and oldLayout.trays or {}
     for id, tray in pairs(trays) do
