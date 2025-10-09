@@ -163,38 +163,58 @@ local function refreshFonts(width, height)
     local smallSize = math.max(16, math.floor(base * 0.022))
     local tinySize = math.max(12, math.floor(base * 0.018))
 
-    -- Prova a caricare il font custom rothenbg.ttf per i titoli e testi
-    local customTitle = safeLoadFont("images/rothenbg.ttf", titleSize)
-    local customH2 = safeLoadFont("images/rothenbg.ttf", h2Size)
-    local customBody = safeLoadFont("images/rothenbg.ttf", bodySize)
-    local customSmall = safeLoadFont("images/rothenbg.ttf", smallSize)
-
-    if customTitle then
-        fonts.title = customTitle
-    else
-        fonts.title = love.graphics.newFont(titleSize)
-        if not loggedFontFallback then
-            print("[Font] rothenbg.ttf non caricato per title, fallback di sistema")
-            loggedFontFallback = true
+    local function loadChain(paths, size)
+        local loaded = {}
+        for _, p in ipairs(paths) do
+            local f = safeLoadFont(p, size)
+            if f then table.insert(loaded, f) end
         end
+        local system = love.graphics.newFont(size)
+        local chosen = loaded[1] or system
+        local fallbacks = {}
+        for i = 2, #loaded do table.insert(fallbacks, loaded[i]) end
+        table.insert(fallbacks, system)
+        if chosen and chosen.setFallbacks and #fallbacks > 0 then
+            pcall(function() chosen:setFallbacks(unpack(fallbacks)) end)
+        end
+        if #loaded == 0 then
+            print("[Font] Nessun font custom disponibile, uso system font")
+        end
+        return chosen
     end
 
-    if customH2 then
-        fonts.h2 = customH2
-    else
-        fonts.h2 = love.graphics.newFont(h2Size)
-    end
+    -- Titoli: preferisci rothenbg, poi pentiment, teutonic, cinzel
+    fonts.title = loadChain({
+        "images/rothenbg.ttf",
+        "images/Pentiment_Textura.otf",
+        "images/teutonic1.ttf",
+        "images/Cinzel-Regular.ttf",
+    }, titleSize)
+    fonts.h2 = loadChain({
+        "images/rothenbg.ttf",
+        "images/Pentiment_Textura.otf",
+        "images/teutonic1.ttf",
+        "images/Cinzel-Regular.ttf",
+    }, h2Size)
 
-    -- Corpo e testi secondari: ora con rothenbg se disponibile
-    fonts.body = customBody or love.graphics.newFont(bodySize)
-    fonts.small = customSmall or love.graphics.newFont(smallSize)
-    fonts.tiny = love.graphics.newFont(tinySize)
+    -- Corpo: evita rothenbg come primario per leggibilità/compatibilità
+    fonts.body = loadChain({
+        "images/teutonic1.ttf",
+        "images/Cinzel-Regular.ttf",
+        "images/Pentiment_Textura.otf",
+    }, bodySize)
+    fonts.small = loadChain({
+        "images/teutonic1.ttf",
+        "images/Cinzel-Regular.ttf",
+        "images/Pentiment_Textura.otf",
+    }, smallSize)
+    fonts.tiny  = love.graphics.newFont(tinySize)
 
-    -- Font opzionali per schermate menu (se mai usate)
-    fonts.menu = customH2 or fonts.body
+    -- Menu/Help
+    fonts.menu = fonts.h2 or fonts.body
     fonts.help = love.graphics.newFont(math.max(14, math.floor(base * 0.02)))
 
-    print("[Font] Fonts: title=" .. tostring(titleSize) .. ", h2=" .. tostring(h2Size) .. ", body=" .. tostring(bodySize))
+    print("[Font] Sizes -> title=" .. titleSize .. ", h2=" .. h2Size .. ", body=" .. bodySize .. ", small=" .. smallSize .. ", tiny=" .. tinySize)
 end
 
 -- === GAME STATE MANAGEMENT ===
