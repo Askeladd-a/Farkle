@@ -41,22 +41,25 @@ function Assets.refreshFonts(width, height)
     tiny  = math.max(12, math.floor(base * 0.018)),
   }
 
-  -- Prefer a clean display face for titles only; fall back to system font
+  -- Usa teutonic1 come font primario (se disponibile) per tutti gli stili
+  local teutonicPaths = {
+    "fonts/teutonic1.ttf",
+    "images/teutonic1.ttf",
+  }
   local titlePaths = {
+    "fonts/teutonic1.ttf","images/teutonic1.ttf",
     "fonts/Cinzel-Regular.ttf","images/Cinzel-Regular.ttf",
   }
-
-  -- Use readable system sans for all UI text
-  local bodyPaths = {}
+  local bodyPaths = teutonicPaths
 
   local fonts = {
     title = loadChain(titlePaths, sizes.title),
-    h2    = loadChain(bodyPaths,  sizes.h2),  -- UI headings use sans for readability
+    h2    = loadChain(bodyPaths,  sizes.h2),
     body  = loadChain(bodyPaths,  sizes.body),
     small = loadChain(bodyPaths,  sizes.small),
-    tiny  = love.graphics.newFont(sizes.tiny),
+    tiny  = loadChain(bodyPaths,  sizes.tiny),
     menu  = nil,
-    help  = love.graphics.newFont(math.max(14, math.floor(base * 0.02))),
+    help  = loadChain(bodyPaths, math.max(14, math.floor(base * 0.02))),
   }
   fonts.menu = fonts.h2 or fonts.body
   print(string.format("[Font] Sizes -> title=%d h2=%d body=%d small=%d tiny=%d", sizes.title, sizes.h2, sizes.body, sizes.small, sizes.tiny))

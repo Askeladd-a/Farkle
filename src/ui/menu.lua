@@ -1,5 +1,112 @@
+-- Menu principale singleton
+local theme = require("src.ui.theme")
+local utils = require("src.ui.utils")
+local constants = require("src.core.constants")
+
+-- I font vengono ora passati come argomento alle funzioni draw
+local L = {w=1280, h=720, margin=32, gap=16, radius=14, bottomRowY=0, logoRect=nil, langRect=nil}
+local buttons = {}
+local hoverIdx, focusIdx = nil, 1
+
+local function addButton(id, label, color, rect, onClick, enabled)
+    table.insert(buttons, {
+        id=id, label=label, color=color, x=rect.x, y=rect.y, w=rect.w, h=rect.h,
+        onClick=onClick or function() print("CLICK:", id) end,
+        enabled = (enabled ~= false)
+    })
+end
+
+function Menu.computeLayout()
+    L.w, L.h = love.graphics.getDimensions()
+    local w,h = L.w, L.h
+    local margin = math.max(24, math.floor(math.min(w,h)*0.02))
+    local gap = math.max(12, math.floor(math.min(w,h)*0.012))
+    local rowH = math.floor(h*0.11)
+    local playW = math.min(420, math.floor(w*0.30))
+    local smallW = math.min(220, math.floor(w*0.17))
+    local rects = utils.computeRects(w, h, margin, gap, rowH, playW, smallW)
+    local logoH = math.min(h*0.28, 260)
+    L.logoRect = {x = math.floor(w*0.12), y = math.floor(h*0.12), w = math.floor(w*0.76), h = math.floor(logoH)}
+    local langW, langH = math.floor(smallW*0.9), math.floor(rowH*0.55)
+    L.langRect = {x = w - margin - langW, y = h - margin - rowH + rowH + gap*0.5 - langH, w = langW, h = langH}
+    buttons = {}
+    addButton("profile",   "PROFILE",   theme.COLORS.profile,    rects.profile)
+    addButton("play",      "PLAY",      theme.COLORS.play,       rects.play, function() print("PLAY!") end)
+    addButton("options",   "OPTIONS",   theme.COLORS.options,    rects.options)
+    addButton("quit",      "QUIT",      theme.COLORS.quit,       rects.quit, function() love.event.quit() end)
+    addButton("collection","COLLECTION",theme.COLORS.collection, rects.collection)
+    for i,b in ipairs(buttons) do if b.id=="play" then focusIdx=i break end end
+end
+
+function Menu.draw()
+    theme.setColor(theme.COLORS.bg)
+    love.graphics.rectangle("fill", 0,0, L.w, L.h)
+    theme.setColor(theme.COLORS.panel)
+    local r = L.logoRect
+    if r and r.x and r.y and r.w and r.h then
+        love.graphics.rectangle("fill", r.x, r.y, r.w, r.h, 18,18)
+        if fontTitle then
+            theme.setColor(theme.COLORS.text)
+            love.graphics.setFont(fontTitle)
+            local title = "FARKLE 3D"
+            local tw = fontTitle:getWidth(title)
+            local th = fontTitle:getHeight()
+            love.graphics.print(title, r.x+(r.w-tw)/2, r.y+(r.h-th)/2)
+        end
+    end
+    for i,b in ipairs(buttons) do Menu.drawButton(b, hoverIdx==i, focusIdx==i) end
+    local lg = L.langRect
+    if lg and lg.x and lg.y and lg.w and lg.h then
+        theme.setColor(theme.COLORS.panel)
+        love.graphics.rectangle("fill", lg.x, lg.y, lg.w, lg.h, 10,10)
+        if fontSmall then
+            theme.setColor(theme.COLORS.text)
+            love.graphics.setFont(fontSmall)
+            local t = "Language: EN"
+            love.graphics.print(t, lg.x + (lg.w - fontSmall:getWidth(t))/2, lg.y + (lg.h - fontSmall:getHeight())/2)
+            theme.setColor({1,1,1,0.5})
+            love.graphics.print("←/→ per cambiare focus • Invio per attivare • Click per selezionare", 16, L.h-28)
+        end
+    end
+end
+
+function Menu.drawButton(b, isHover, isFocus)
+    theme.setColor(theme.COLORS.shadow)
+    love.graphics.rectangle("fill", b.x+2, b.y+4, b.w, b.h, L.radius, L.radius)
+    theme.setColor(b.enabled and b.color or theme.COLORS.disabled)
+    love.graphics.rectangle("fill", b.x, b.y, b.w, b.h, L.radius, L.radius)
+    if isHover or isFocus then
+        theme.setColor(theme.COLORS.hover)
+        love.graphics.rectangle("fill", b.x, b.y, b.w, b.h, L.radius, L.radius)
+    end
+    theme.setColor(theme.COLORS.text)
+    love.graphics.setFont(fontBtn)
+    local tw = fontBtn:getWidth(b.label)
+    local th = fontBtn:getHeight()
+    love.graphics.print(b.label, b.x + (b.w-tw)/2, b.y + (b.h-th)/2 - 2)
+end
+
+function Menu.handleKey(key)
+    if key == "return" or key == "space" then
+        local b = buttons[focusIdx or 1]
+        if b and b.enabled then b.onClick() end
+    elseif key == "right" then
+        focusIdx = math.min(#buttons, (focusIdx or 1) + 1)
+    elseif key == "left" then
+        focusIdx = math.max(1, (focusIdx or 1) - 1)
+    end
+end
+
+function Menu.handleMouse(mx, my)
+    for i,b in ipairs(buttons) do
+        if theme.pointInRect(mx, my, b) and b.enabled then hoverIdx = i break end
+    end
+end
+
+function Menu.getButtons() return buttons end
+function Menu.getFocusIdx() return focusIdx end
+function Menu.getHoverIdx() return hoverIdx end
 local Menu = {}
-Menu.__index = Menu
 
 local function drawMenuCard(x, y, w, h, isSelected, accentPulse)
     love.graphics.setColor(0.06, 0.09, 0.14, 0.86)

@@ -91,8 +91,10 @@ function Options.draw(game, fonts)
       love.graphics.rectangle("fill", menuX, iy, ui.menuW, ui.itemH, 8, 8)
     end
     love.graphics.setColor(0.95, 0.98, 1.0)
-    love.graphics.setFont(fonts.body)
-    love.graphics.print(item.label, menuX + 12, iy + (ui.itemH - fonts.body:getHeight()) / 2)
+    if fonts and fonts.body then
+      love.graphics.setFont(fonts.body)
+      love.graphics.print(item.label, menuX + 12, iy + (ui.itemH - fonts.body:getHeight()) / 2)
+    end
   end
 end
 

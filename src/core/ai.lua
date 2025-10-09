@@ -1,4 +1,4 @@
-local scoring = require("lib.scoring")
+local scoring = require("src.core.scoring")
 local table_unpack = table.unpack or unpack
 
 local AIController = {}

@@ -9,6 +9,7 @@ local Audio = {
     select = nil, -- select/lock dice
     bust = nil,   -- farkle
     ambience = nil, -- tavern loop
+    stamp = nil, -- cursor stamp
   },
   lastDiceTime = 0,
   pendingQuitAt = nil,
@@ -91,6 +92,13 @@ function Audio.init()
     if ok and src then Audio.sounds.bust = src; print("[SFX] Loaded bust: " .. bustBase) end
   end
 
+  -- Stamp (cursor click) SFX
+  local stampBase = tryBases({"sounds/ui/stamp", "sounds/stamp", "sound/ui/stamp", "sound/stamp"})
+  if stampBase then
+    local ok, src = pcall(love.audio.newSource, stampBase, "static")
+    if ok and src then Audio.sounds.stamp = src; print("[SFX] Loaded stamp: " .. stampBase) end
+  end
+
   -- Ambience loop
   local ambBase = tryBases({"sounds/ambience/tavern", "sound/ambience/tavern", "sounds/ambience", "sound/ambience"})
   if ambBase then
@@ -155,6 +163,14 @@ function Audio.playBust()
   local c = Audio.sounds.bust:clone()
   c:setVolume(0.85)
   c:setPitch(0.94)
+  c:play()
+end
+
+function Audio.playStamp()
+  if not (Audio.sounds and Audio.sounds.stamp) then return end
+  local c = Audio.sounds.stamp:clone()
+  c:setVolume(0.9)
+  c:setPitch(0.98 + love.math.random() * 0.04)
   c:play()
 end
 

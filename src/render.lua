@@ -1,5 +1,41 @@
--- Rendering logic for Farkle
 local M = {}
+
+local Dice = require("src.graphics.dice")
+local DiceAnimations = require("src.graphics.dice_animations")
+
+local function isoProject(x, y, z)
+    local angle = math.rad(30)
+    local x2d = (x - y) * math.cos(angle)
+    local y2d = (x + y) * math.sin(angle) - (z or 0)
+    return x2d, y2d
+end
+
+function M.drawIsometricTray(tray)
+    love.graphics.setColor(0.18, 0.12, 0.07, 0.18)
+    love.graphics.rectangle("fill", tray.x, tray.y, tray.w, tray.h, 18, 18)
+    love.graphics.setColor(0.35, 0.27, 0.18, 0.32)
+    love.graphics.setLineWidth(3)
+    love.graphics.rectangle("line", tray.x, tray.y, tray.w, tray.h, 14, 14)
+end
+
+function M.drawIsometricKeptColumn(kept, area)
+    if not area or #kept == 0 then return end
+    local spacing = math.min(Dice.SIZE + 16, math.floor(area.h / #kept))
+    local startY = area.y + spacing * 0.5
+    local centerX = area.x + area.w * 0.5
+    for i, value in ipairs(kept) do
+        local y = startY + (i - 1) * spacing
+        Dice.drawDie({ value = value, x = centerX, y = y, z = 0, angle = 0, locked = true })
+    end
+end
+
+function M.drawIsometricDice(roll)
+    for _, die in ipairs(roll) do
+        if DiceAnimations.drawDie then
+            DiceAnimations.drawDie(die, 1)
+        end
+    end
+end
 
 function M.safeDrawBoard(boardImage, layout)
     if not boardImage or not layout or not layout.board then return end
@@ -7,7 +43,6 @@ function M.safeDrawBoard(boardImage, layout)
     if board.w < 50 or board.h < 50 or board.x < 0 or board.y < 0 then
         love.graphics.setColor(0.2,0.2,0.2,1)
         love.graphics.rectangle("fill", 0, 0, love.graphics.getWidth(), love.graphics.getHeight())
-        love.graphics.setColor(1,1,1,1)
         love.graphics.print("Finestra troppo piccola!", 10, 10)
         return
     end
@@ -18,149 +53,110 @@ end
 function M.drawScoreboard(layout, fonts, game)
     local sb = layout.scoreboard
     if not sb then return end
-    
-    -- Gwent-style scoreboard
-    local player1 = game.players[1] -- Human player
-    local player2 = game.players[2] -- AI opponent
-    
-            -- Player's scoreboard positioned on the left side of the board
-    local playerScore = {
-        x = math.max(20, layout.board.x - layout.board.w * 0.30), -- Move further left of the board with minimum padding
-        y = layout.board.y + layout.board.h * 0.65, -- Position in the lower part but not at the very bottom
-        w = layout.board.w * 0.25,
-        h = layout.board.h * 0.12
-    }
-    
-    -- Brass plaque background
-    love.graphics.setColor(0.1, 0.08, 0.06, 0.95)
-    love.graphics.rectangle("fill", playerScore.x, playerScore.y, playerScore.w, playerScore.h, 12, 12)
-    love.graphics.setColor(0.60, 0.48, 0.25)
-    love.graphics.setLineWidth(2)
-    love.graphics.rectangle("line", playerScore.x, playerScore.y, playerScore.w, playerScore.h, 12, 12)
-    love.graphics.setColor(0.74, 0.60, 0.30)
-    love.graphics.rectangle("line", playerScore.x+2, playerScore.y+2, playerScore.w-4, playerScore.h-4, 10, 10)
-    
-    -- Portrait background (darker circle)
-    local portraitSize = playerScore.h * 0.8
-    local portraitX = playerScore.x + portraitSize * 0.3
-    local portraitY = playerScore.y + (playerScore.h - portraitSize) / 2
-    
-    love.graphics.setColor(0.05, 0.04, 0.03, 0.9)
-    love.graphics.circle("fill", portraitX, portraitY + portraitSize/2, portraitSize/2)
-    
-    -- Player icon (simple silhouette)
-    love.graphics.setColor(0.8, 0.75, 0.6)
-    love.graphics.circle("fill", portraitX, portraitY + portraitSize/2, portraitSize/2 - 2)
-    love.graphics.setColor(0.35, 0.3, 0.25)
-    love.graphics.circle("line", portraitX, portraitY + portraitSize/2, portraitSize/2 - 2)
-    
-    -- Draw name and faction
-    love.graphics.setFont(fonts.body)
-    love.graphics.setColor(0.92, 0.84, 0.62) -- warm gold name
-    love.graphics.print(player1.name, portraitX + portraitSize * 0.7, playerScore.y + playerScore.h * 0.2)
-    
-    love.graphics.setFont(fonts.small)
-    love.graphics.setColor(0.82, 0.78, 0.72) -- subtle light for role label
-    love.graphics.print("Dice Roller", portraitX + portraitSize * 0.7, playerScore.y + playerScore.h * 0.6)
-    
-    -- Draw score in a fancy medallion
-    local scoreX = playerScore.x + playerScore.w - portraitSize * 0.7
-    local scoreY = playerScore.y + playerScore.h * 0.5 - portraitSize * 0.3
-    
-    -- Score background
-    love.graphics.setColor(0.58, 0.42, 0.22, 0.92) -- bronze fill
-    love.graphics.circle("fill", scoreX, scoreY, portraitSize * 0.35)
-    love.graphics.setColor(0.86, 0.7, 0.36) -- bronze edge
-    love.graphics.setLineWidth(2)
-    love.graphics.circle("line", scoreX, scoreY, portraitSize * 0.35)
-    
-    -- Draw the actual score
-    love.graphics.setFont(fonts.h2)
-    love.graphics.setColor(1, 1, 1)
-    local scoreText = tostring(player1.banked)
-    local textW = fonts.h2:getWidth(scoreText)
-    love.graphics.print(scoreText, scoreX - textW/2, scoreY - fonts.h2:getHeight()/2)
-    
-    -- Round gems (up to 3) indicating progress this turn
-    local gems = math.min(3, math.floor((game.roundScore or 0) / 250) + ((game.roundScore or 0) > 0 and 1 or 0))
-    local gx = playerScore.x + playerScore.w - portraitSize * 1.6
-    local gy = playerScore.y + playerScore.h * 0.72
-    for i = 1, gems do
-        love.graphics.setColor(0.98, 0.86, 0.38, 0.95)
-        love.graphics.circle("fill", gx + (i-1) * (portraitSize * 0.22), gy, portraitSize * 0.08)
-        love.graphics.setColor(0.99, 0.92, 0.6)
-        love.graphics.circle("line", gx + (i-1) * (portraitSize * 0.22), gy, portraitSize * 0.08)
+        local player1 = game.players[1]
+        local player2 = game.players[2]
+        -- Player
+        do
+            local px, py = isoProject(math.max(20, layout.board.x - layout.board.w * 0.30), layout.board.y + layout.board.h * 0.65, 0)
+            local playerScore = {
+                x = px,
+                y = py,
+                w = layout.board.w * 0.25,
+                h = layout.board.h * 0.12
+            }
+            local portraitSize = playerScore.h * 0.8
+            local scoreY = playerScore.y + playerScore.h * 0.5
+            local portraitX = playerScore.x + portraitSize * 0.3
+            local portraitY = playerScore.y + (playerScore.h - portraitSize) / 2
+            love.graphics.setColor(0.05, 0.04, 0.03, 0.9)
+            love.graphics.circle("fill", portraitX, portraitY + portraitSize/2, portraitSize/2)
+            love.graphics.setColor(0.8, 0.75, 0.6)
+            love.graphics.circle("fill", portraitX, portraitY + portraitSize/2, portraitSize/2 - 2)
+            love.graphics.setColor(0.35, 0.3, 0.25)
+            love.graphics.circle("line", portraitX, portraitY + portraitSize/2, portraitSize/2 - 2)
+            if fonts and fonts.body then love.graphics.setFont(fonts.body) end
+            love.graphics.setColor(0.92, 0.84, 0.62)
+            love.graphics.print(player1.name, portraitX + portraitSize * 0.7, playerScore.y + playerScore.h * 0.2)
+            if fonts and fonts.small then love.graphics.setFont(fonts.small) end
+            love.graphics.setColor(0.82, 0.78, 0.72)
+            love.graphics.print("Dice Roller", portraitX + portraitSize * 0.7, playerScore.y + playerScore.h * 0.6)
+            local scoreX = playerScore.x + playerScore.w - portraitSize * 0.7
+            if fonts and fonts.body then love.graphics.setFont(fonts.body) end
+            love.graphics.setColor(0.58, 0.42, 0.22, 0.92)
+            love.graphics.circle("fill", scoreX, scoreY, portraitSize * 0.35)
+            love.graphics.setColor(0.86, 0.7, 0.36)
+            love.graphics.setLineWidth(2)
+            love.graphics.circle("line", scoreX, scoreY, portraitSize * 0.35)
+            if fonts and fonts.h2 then love.graphics.setFont(fonts.h2) end
+            love.graphics.setColor(1, 1, 1)
+            local scoreText = tostring(player1.banked)
+            local textW = fonts.h2 and fonts.h2:getWidth(scoreText) or 0
+            love.graphics.print(scoreText, scoreX - textW/2, scoreY - (fonts.h2 and fonts.h2:getHeight() or 0)/2)
+            local gems = math.min(3, math.floor((game.roundScore or 0) / 250) + ((game.roundScore or 0) > 0 and 1 or 0))
+            local gx = playerScore.x + playerScore.w - portraitSize * 1.6
+            local gy = playerScore.y + playerScore.h * 0.72
+            if fonts and fonts.h2 then love.graphics.setFont(fonts.h2) end
+            for i = 1, gems do
+                love.graphics.setColor(0.98, 0.86, 0.38, 0.95)
+                love.graphics.circle("fill", gx + (i-1) * (portraitSize * 0.22), gy, portraitSize * 0.08)
+                love.graphics.setColor(0.99, 0.92, 0.6)
+                love.graphics.circle("line", gx + (i-1) * (portraitSize * 0.22), gy, portraitSize * 0.08)
+            end
+            local isPlayerActive = (game.players[1] == game.players[game.active])
+            love.graphics.setColor(0.98, 0.86, 0.38, 0.18)
+            love.graphics.setLineWidth(8)
+            if isPlayerActive then
+                love.graphics.rectangle("line", playerScore.x-3, playerScore.y-3, playerScore.w+6, playerScore.h+6, 14, 14)
+            end
+        end
+        -- AI
+        do
+            local ax, ay = isoProject(math.max(20, layout.board.x - layout.board.w * 0.30), layout.board.y + layout.board.h * 0.15, 0)
+            local aiScore = {
+                x = ax,
+                y = ay,
+                w = layout.board.w * 0.25,
+                h = layout.board.h * 0.12
+            }
+            local portraitSize = aiScore.h * 0.8
+            local scoreY = aiScore.y + aiScore.h * 0.5
+            local aiPortraitX = aiScore.x + portraitSize * 0.3
+            local aiPortraitY = aiScore.y + (aiScore.h - portraitSize) / 2
+            love.graphics.setColor(0.05, 0.04, 0.03, 0.9)
+            love.graphics.circle("fill", aiPortraitX, aiPortraitY + portraitSize/2, portraitSize/2)
+            love.graphics.setColor(0.7, 0.3, 0.3)
+            love.graphics.circle("fill", aiPortraitX, aiPortraitY + portraitSize/2, portraitSize/2 - 2)
+            love.graphics.setColor(0.4, 0.2, 0.2)
+            love.graphics.circle("line", aiPortraitX, aiPortraitY + portraitSize/2, portraitSize/2 - 2)
+            if fonts and fonts.body then love.graphics.setFont(fonts.body) end
+            love.graphics.setColor(0.92, 0.84, 0.62)
+            love.graphics.print(player2.name, aiPortraitX + portraitSize * 0.7, aiScore.y + aiScore.h * 0.2)
+            if fonts and fonts.small then love.graphics.setFont(fonts.small) end
+            love.graphics.setColor(0.82, 0.78, 0.72)
+            love.graphics.print("Dice Master", aiPortraitX + portraitSize * 0.7, aiScore.y + aiScore.h * 0.6)
+            local aiScoreX = aiScore.x + aiScore.w - portraitSize * 0.7
+            local aiScoreY = aiScore.y + aiScore.h * 0.5 - portraitSize * 0.3
+            love.graphics.setColor(0.58, 0.42, 0.22, 0.92)
+            love.graphics.circle("fill", aiScoreX, aiScoreY, portraitSize * 0.35)
+            love.graphics.setColor(0.86, 0.7, 0.36)
+            love.graphics.setLineWidth(2)
+            love.graphics.circle("line", aiScoreX, aiScoreY, portraitSize * 0.35)
+            if fonts and fonts.h2 then love.graphics.setFont(fonts.h2) end
+            love.graphics.setColor(1, 1, 1)
+            local aiScoreText = tostring(player2.banked)
+            local aiTextW = fonts.h2 and fonts.h2:getWidth(aiScoreText) or 0
+            love.graphics.print(aiScoreText, aiScoreX - aiTextW/2, aiScoreY - (fonts.h2 and fonts.h2:getHeight() or 0)/2)
+            local isPlayerActive = (game.players[1] == game.players[game.active])
+            love.graphics.setColor(0.98, 0.86, 0.38, 0.18)
+            love.graphics.setLineWidth(8)
+            if not isPlayerActive then
+                love.graphics.rectangle("line", aiScore.x-3, aiScore.y-3, aiScore.w+6, aiScore.h+6, 14, 14)
+            end
+        end
     end
-    
-            -- AI's scoreboard positioned on the left side of the board, above the player's
-    local aiScore = {
-        x = math.max(20, layout.board.x - layout.board.w * 0.30), -- Match player's x-position
-        y = layout.board.y + layout.board.h * 0.15, -- Position higher to avoid overlaps
-        w = layout.board.w * 0.25,
-        h = layout.board.h * 0.12
-    }
-    
-    -- Brass plaque background
-    love.graphics.setColor(0.1, 0.08, 0.06, 0.95)
-    love.graphics.rectangle("fill", aiScore.x, aiScore.y, aiScore.w, aiScore.h, 12, 12)
-    love.graphics.setColor(0.60, 0.48, 0.25)
-    love.graphics.setLineWidth(2)
-    love.graphics.rectangle("line", aiScore.x, aiScore.y, aiScore.w, aiScore.h, 12, 12)
-    love.graphics.setColor(0.74, 0.60, 0.30)
-    love.graphics.rectangle("line", aiScore.x+2, aiScore.y+2, aiScore.w-4, aiScore.h-4, 10, 10)
-    
-    -- Portrait background (darker circle)
-    local aiPortraitX = aiScore.x + portraitSize * 0.3
-    local aiPortraitY = aiScore.y + (aiScore.h - portraitSize) / 2
-    
-    love.graphics.setColor(0.05, 0.04, 0.03, 0.9)
-    love.graphics.circle("fill", aiPortraitX, aiPortraitY + portraitSize/2, portraitSize/2)
-    
-    -- AI icon (simple silhouette - slightly different)
-    love.graphics.setColor(0.7, 0.3, 0.3) -- Reddish for opponent
-    love.graphics.circle("fill", aiPortraitX, aiPortraitY + portraitSize/2, portraitSize/2 - 2)
-    love.graphics.setColor(0.4, 0.2, 0.2)
-    love.graphics.circle("line", aiPortraitX, aiPortraitY + portraitSize/2, portraitSize/2 - 2)
-    
-    -- Draw name and faction
-    love.graphics.setFont(fonts.body)
-    love.graphics.setColor(0.92, 0.84, 0.62)
-    love.graphics.print(player2.name, aiPortraitX + portraitSize * 0.7, aiScore.y + aiScore.h * 0.2)
-    
-    love.graphics.setFont(fonts.small)
-    love.graphics.setColor(0.82, 0.78, 0.72)
-    love.graphics.print("Dice Master", aiPortraitX + portraitSize * 0.7, aiScore.y + aiScore.h * 0.6)
-    
-    -- Draw score in a fancy medallion (glow when active player)
-    local aiScoreX = aiScore.x + aiScore.w - portraitSize * 0.7
-    local aiScoreY = aiScore.y + aiScore.h * 0.5 - portraitSize * 0.3
-    
-    -- Score background
-    love.graphics.setColor(0.58, 0.42, 0.22, 0.92)
-    love.graphics.circle("fill", aiScoreX, aiScoreY, portraitSize * 0.35)
-    love.graphics.setColor(0.86, 0.7, 0.36)
-    love.graphics.setLineWidth(2)
-    love.graphics.circle("line", aiScoreX, aiScoreY, portraitSize * 0.35)
-    
-    -- Draw the actual score
-    love.graphics.setFont(fonts.h2)
-    love.graphics.setColor(1, 1, 1)
-    local aiScoreText = tostring(player2.banked)
-    local aiTextW = fonts.h2:getWidth(aiScoreText)
-    love.graphics.print(aiScoreText, aiScoreX - aiTextW/2, aiScoreY - fonts.h2:getHeight()/2)
-
-    -- Active player glow (gold rim) on their plaque
-    local isPlayerActive = (game.players[1] == game.players[game.active])
-    if isPlayerActive then
-        love.graphics.setColor(0.98, 0.86, 0.38, 0.18)
-        love.graphics.setLineWidth(8)
-        love.graphics.rectangle("line", playerScore.x-3, playerScore.y-3, playerScore.w+6, playerScore.h+6, 14, 14)
-    else
-        love.graphics.setColor(0.98, 0.86, 0.38, 0.18)
-        love.graphics.setLineWidth(8)
-        love.graphics.rectangle("line", aiScore.x-3, aiScore.y-3, aiScore.w+6, aiScore.h+6, 14, 14)
-    end
-end
+    -- ...existing code...
+    -- (nessun duplicato, tutte le variabili sono locali ai rispettivi blocchi)
+    -- ...existing code...
 
 function M.drawLog(layout, fonts, game)
     -- Compact banner centered with left dice icon and brass frame

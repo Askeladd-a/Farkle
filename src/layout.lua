@@ -1,3 +1,10 @@
+-- Isometric projection utility
+local function isoProject(x, y, z)
+    local angle = math.rad(30)
+    local x2d = (x - y) * math.cos(angle)
+    local y2d = (x + y) * math.sin(angle) - (z or 0)
+    return x2d, y2d
+end
 -- Layout logic for Farkle
 local M = {}
 
@@ -177,19 +184,34 @@ function M.setupLayout(windowW, windowH, fonts, BUTTON_LABELS, boardImage, overr
     -- Provide hinge position for other renderers (center between inner trays)
     board.hingeRatio = (overrideInnerFrame and overrideInnerFrame.hingeRatio)
         or ((innerFrame.topBottom + innerFrame.bottomTop) * 0.5)
+    -- Project tray and kept positions isometrically
+    local trayIso_ai = {}
+    local trayIso_player = {}
+    local keptIso_ai = {}
+    local keptIso_player = {}
+    do
+        local tx, ty = isoProject(trayX, trayY_ai, 0)
+        trayIso_ai.x, trayIso_ai.y, trayIso_ai.w, trayIso_ai.h = tx, ty, trayW, trayH_ai
+        tx, ty = isoProject(trayX, trayY_player, 0)
+        trayIso_player.x, trayIso_player.y, trayIso_player.w, trayIso_player.h = tx, ty, trayW, trayH_player
+        local kx, ky = isoProject(kept_ai.x, kept_ai.y, 0)
+        keptIso_ai.x, keptIso_ai.y, keptIso_ai.w, keptIso_ai.h = kx, ky, kept_ai.w, kept_ai.h
+        kx, ky = isoProject(kept_player.x, kept_player.y, 0)
+        keptIso_player.x, keptIso_player.y, keptIso_player.w, keptIso_player.h = kx, ky, kept_player.w, kept_player.h
+    end
     return {
         board = board,
         trays = {
-            ai = {x = trayX, y = trayY_ai, w = trayW, h = trayH_ai},
-            player = {x = trayX, y = trayY_player, w = trayW, h = trayH_player},
+            ai = trayIso_ai,
+            player = trayIso_player,
         },
         trayClips = {
             ai = trayClip_ai,
             player = trayClip_player,
         },
         kept = {
-            ai = kept_ai,
-            player = kept_player,
+            ai = keptIso_ai,
+            player = keptIso_player,
         },
         buttons = buttons,
         scoreboard = scoreboard,

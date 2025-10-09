@@ -1,0 +1,1 @@
+Questa cartella contiene tutti gli asset grafici del gioco (sprite, UI, dadi, cursori, ecc.).
