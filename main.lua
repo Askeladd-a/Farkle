@@ -614,7 +614,7 @@ local function rectsIntersect(ax, ay, aw, ah, bx, by, bw, bh)
 end
 
 local function computeOptionsMenuRect()
-    local btn = game.uiOptions.anchor or (game.layout and game.layout.optionsButton)
+    local btn = game.uiOptions.anchor
     if not btn then return nil end
     local ui = game.uiOptions
     local width, height = love.graphics.getDimensions()
@@ -651,31 +651,16 @@ local function computeOptionsMenuRect()
 end
 
 local function drawOptionsButtonAndMenu()
-    if not game.layout or not game.layout.optionsButton then return end
-    local btn = game.layout.optionsButton
     local ui = game.uiOptions
-
-    -- Pulsante circolare con icona ⋮
-    love.graphics.setColor(ui.buttonHover and 0.20 or 0.15, 0.15, 0.17, 0.95)
-    love.graphics.rectangle("fill", btn.x, btn.y, btn.w, btn.h, 8, 8)
-    love.graphics.setColor(0.1, 0.12, 0.16, 1)
-    love.graphics.setLineWidth(2)
-    love.graphics.rectangle("line", btn.x, btn.y, btn.w, btn.h, 8, 8)
-    love.graphics.setColor(0.95, 0.98, 1.0)
-    love.graphics.setFont(fonts.h2)
-    love.graphics.printf("⋮", btn.x, btn.y + (btn.h - fonts.h2:getHeight()) / 2 - 2, btn.w, "center")
-
     if not ui.open then return end
-
-    -- Calcola rettangolo menu evitando la griglia 2x2
     local rect = computeOptionsMenuRect()
+    if not rect then return end
     local menuX, menuY = rect.x, rect.y
     local menuH = rect.h
     love.graphics.setColor(0, 0, 0, 0.25)
     love.graphics.rectangle("fill", menuX + 2, menuY + 3, ui.menuW, menuH, 8, 8)
     love.graphics.setColor(0.12, 0.12, 0.14, 0.98)
     love.graphics.rectangle("fill", menuX, menuY, ui.menuW, menuH, 8, 8)
-
     for i, item in ipairs(ui.items) do
         local iy = menuY + (i - 1) * ui.itemH
         if ui.hoverIndex == i then
@@ -690,11 +675,11 @@ end
 
 local function buttonEnabled(label)
     if game.state ~= "playing" or game.winner then
-        return label == "Main Menu" or label == "Guide"
+        return label == "Options" or label == "Guide"
     end
     local player = getActivePlayer()
     if player.isAI then
-        return label == "Guide" or label == "Main Menu"
+        return label == "Guide" or label == "Options"
     end
     if label == "Roll Dice" then
         if game.rolling then
@@ -1044,9 +1029,9 @@ function love.update(dt)
         Dice.updateAnimations(dt)
         updateGame(dt)
         -- Aggiorna hover per tasto e menu opzioni
-        if game.state == "playing" and game.layout and (game.layout.optionsButton or game.uiOptions.anchor) then
+        if game.state == "playing" and game.layout and game.uiOptions.anchor then
             local mx, my = love.mouse.getPosition()
-            local btn = game.uiOptions.anchor or game.layout.optionsButton
+            local btn = game.uiOptions.anchor
             local ui = game.uiOptions
             ui.buttonHover = (mx >= btn.x and mx <= btn.x + btn.w and my >= btn.y and my <= btn.y + btn.h)
             ui.hoverIndex = nil
@@ -1155,8 +1140,8 @@ function love.mousepressed(x, y, button)
             return
         end
         -- Click su tasto Opzioni e menu
-        if game.state == "playing" and game.layout and (game.layout.optionsButton or game.uiOptions.anchor) then
-            local btn = game.uiOptions.anchor or game.layout.optionsButton
+        if game.state == "playing" and game.layout and game.uiOptions.anchor then
+            local btn = game.uiOptions.anchor
             local ui = game.uiOptions
             local onButton = (x >= btn.x and x <= btn.x + btn.w and y >= btn.y and y <= btn.y + btn.h)
             if onButton then
