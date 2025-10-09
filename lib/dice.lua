@@ -25,8 +25,8 @@ local function biasedUpwardSpeed(range)
 end
 
 function Dice.newDie(tray)
-    local cx = tray.x + tray.w * 0.5
-    -- Spawn verso la parte bassa del tray per enfatizzare il lancio verso l'alto
+    -- Spawn verso la parte bassa del tray, X casuale sicura
+    local cx = tray.x + Dice.RADIUS + random() * (math.max(0, tray.w - 2 * Dice.RADIUS))
     local cy = tray.y + tray.h * (0.78 + 0.12 * random())
     return {
         value = random(1, 6),
