@@ -69,7 +69,7 @@ game.uiOptions = {
         { label = "Toggle Guide", action = function() game.showGuide = not game.showGuide end },
         { label = "Restart Game", action = function() startNewGame() end },
         { label = "Main Menu",    action = function() game.state = "menu" end },
-        { label = "Quit",         action = function() love.event.quit() end },
+        { label = "Exit Game",    action = function() love.event.quit() end },
     }
 }
 
@@ -157,14 +157,42 @@ end
 local function refreshFonts(width, height)
     local base = math.min(width, height)
 
-    -- Usiamo direttamente i font di sistema
-    fonts.title = love.graphics.newFont(math.max(48, math.floor(base * 0.07)))
-    fonts.h2 = love.graphics.newFont(math.max(28, math.floor(base * 0.04)))
-    fonts.body = love.graphics.newFont(math.max(20, math.floor(base * 0.028)))
-    fonts.small = love.graphics.newFont(math.max(16, math.floor(base * 0.022)))
-    fonts.tiny = love.graphics.newFont(math.max(12, math.floor(base * 0.018)))
-    
-    print("[Font] All fonts loaded using system fonts")
+    local titleSize = math.max(48, math.floor(base * 0.07))
+    local h2Size = math.max(28, math.floor(base * 0.04))
+    local bodySize = math.max(20, math.floor(base * 0.028))
+    local smallSize = math.max(16, math.floor(base * 0.022))
+    local tinySize = math.max(12, math.floor(base * 0.018))
+
+    -- Prova a caricare il font custom rothenbg.ttf per i titoli
+    local customTitle = safeLoadFont("images/rothenbg.ttf", titleSize)
+    local customH2 = safeLoadFont("images/rothenbg.ttf", h2Size)
+
+    if customTitle then
+        fonts.title = customTitle
+    else
+        fonts.title = love.graphics.newFont(titleSize)
+        if not loggedFontFallback then
+            print("[Font] rothenbg.ttf non caricato per title, fallback di sistema")
+            loggedFontFallback = true
+        end
+    end
+
+    if customH2 then
+        fonts.h2 = customH2
+    else
+        fonts.h2 = love.graphics.newFont(h2Size)
+    end
+
+    -- Corpo e testi secondari con font di sistema (leggibilità)
+    fonts.body = love.graphics.newFont(bodySize)
+    fonts.small = love.graphics.newFont(smallSize)
+    fonts.tiny = love.graphics.newFont(tinySize)
+
+    -- Font opzionali per schermate menu (se mai usate)
+    fonts.menu = customH2 or fonts.body
+    fonts.help = love.graphics.newFont(math.max(14, math.floor(base * 0.02)))
+
+    print("[Font] Fonts: title=" .. tostring(titleSize) .. ", h2=" .. tostring(h2Size) .. ", body=" .. tostring(bodySize))
 end
 
 -- === GAME STATE MANAGEMENT ===
