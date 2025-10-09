@@ -242,8 +242,10 @@ end
 local function handleBust()
     local current = getActivePlayer()
     if current.isAI then
+        Audio.playBust()
         endTurn("Bust! Baron von Farkle loses the round.")
     else
+        Audio.playBust()
         endTurn("Bust! You lose the round points.")
     end
 end
@@ -362,6 +364,7 @@ local function bankRound()
     if game.roundScore <= 0 then
         return false
     end
+    Audio.playCoins()
     player.banked = player.banked + game.roundScore
     if player.banked >= winningScore then
         game.winner = player
@@ -1079,6 +1082,20 @@ function love.draw()
                 if isCTA and btn.enabled then Theme.setColor(Theme.colors.gold) else Theme.setColor(Theme.colors.text) end
                 love.graphics.setFont(fonts.body)
                 love.graphics.printf(btn.label, btn.x, btn.y + pressOffset + btn.h / 2 - fonts.body:getHeight() / 2, btn.w, "center")
+                -- coins/IOU props near Bank
+                if btn.label == "Bank Points" then
+                    local cx = btn.x + btn.w - 18
+                    local cy = btn.y + btn.h - 14 + pressOffset
+                    love.graphics.setColor(0.84, 0.71, 0.42, 0.95)
+                    love.graphics.circle("fill", cx, cy, 6)
+                    love.graphics.setColor(0.60, 0.48, 0.25)
+                    love.graphics.circle("line", cx, cy, 6)
+                    -- tiny IOU ticket
+                    love.graphics.setColor(0.96, 0.92, 0.85, 0.9)
+                    love.graphics.rectangle("fill", btn.x + 6, btn.y + btn.h - 12 + pressOffset, 26, 10, 2, 2)
+                    love.graphics.setColor(0.35, 0.27, 0.18)
+                    love.graphics.rectangle("line", btn.x + 6, btn.y + btn.h - 12 + pressOffset, 26, 10, 2, 2)
+                end
             end
         end
         drawGuide()
@@ -1166,6 +1183,7 @@ function love.mousepressed(x, y, button)
             local dy = y - die.y
             if dx * dx + dy * dy <= Dice.RADIUS * Dice.RADIUS then
                 die.locked = not die.locked
+                if die.locked then Audio.playSelect() end
                 ensureParticles(die)
                 refreshSelection()
                 return

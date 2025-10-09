@@ -5,6 +5,10 @@ local Audio = {
     dice = {},
     book = nil,   -- page flip
     handle = nil, -- quit handle
+    coins = nil,  -- bank jingle
+    select = nil, -- select/lock dice
+    bust = nil,   -- farkle
+    ambience = nil, -- tavern loop
   },
   lastDiceTime = 0,
   pendingQuitAt = nil,
@@ -48,6 +52,39 @@ function Audio.init()
     local ok, src = pcall(love.audio.newSource, handleBase, "static")
     if ok and src then Audio.sounds.handle = src; print("[SFX] Loaded book handle: " .. handleBase) end
   end
+
+  -- Coins jingle for banking
+  local coinsBase = findExistingAudio("sounds/ui/coins") or findExistingAudio("sounds/coins")
+  if coinsBase then
+    local ok, src = pcall(love.audio.newSource, coinsBase, "static")
+    if ok and src then Audio.sounds.coins = src; print("[SFX] Loaded coins: " .. coinsBase) end
+  end
+
+  -- Select/lock dice SFX
+  local selectBase = findExistingAudio("sounds/ui/select") or findExistingAudio("sounds/select")
+  if selectBase then
+    local ok, src = pcall(love.audio.newSource, selectBase, "static")
+    if ok and src then Audio.sounds.select = src; print("[SFX] Loaded select: " .. selectBase) end
+  end
+
+  -- Bust/farkle SFX
+  local bustBase = findExistingAudio("sounds/ui/bust") or findExistingAudio("sounds/bust")
+  if bustBase then
+    local ok, src = pcall(love.audio.newSource, bustBase, "static")
+    if ok and src then Audio.sounds.bust = src; print("[SFX] Loaded bust: " .. bustBase) end
+  end
+
+  -- Ambience loop
+  local ambBase = findExistingAudio("sounds/ambience/tavern") or findExistingAudio("sounds/ambience")
+  if ambBase then
+    local ok, src = pcall(love.audio.newSource, ambBase, "stream")
+    if ok and src then
+      src:setLooping(true)
+      src:setVolume(0.32) -- circa -10/-12 LUFS perceived
+      Audio.sounds.ambience = src
+      print("[SFX] Loaded ambience: " .. ambBase)
+    end
+  end
 end
 
 function Audio.playDiceImpact(strength)
@@ -80,6 +117,30 @@ function Audio.playBookHandle()
   c:play()
 end
 
+function Audio.playCoins()
+  if not (Audio.sounds and Audio.sounds.coins) then return end
+  local c = Audio.sounds.coins:clone()
+  c:setVolume(0.8)
+  c:setPitch(1.0)
+  c:play()
+end
+
+function Audio.playSelect()
+  if not (Audio.sounds and Audio.sounds.select) then return end
+  local c = Audio.sounds.select:clone()
+  c:setVolume(0.5)
+  c:setPitch(1.02)
+  c:play()
+end
+
+function Audio.playBust()
+  if not (Audio.sounds and Audio.sounds.bust) then return end
+  local c = Audio.sounds.bust:clone()
+  c:setVolume(0.85)
+  c:setPitch(0.94)
+  c:play()
+end
+
 function Audio.requestQuit()
   if Audio.pendingQuitAt then return end
   Audio.playBookHandle()
@@ -90,6 +151,10 @@ function Audio.update()
   if Audio.pendingQuitAt and love.timer.getTime() >= Audio.pendingQuitAt then
     Audio.pendingQuitAt = nil
     love.event.quit()
+  end
+  if Audio.sounds and Audio.sounds.ambience and not Audio.sounds.ambience:isPlaying() then
+    -- lazy start ambience once
+    local ok = pcall(function() Audio.sounds.ambience:play() end)
   end
 end
 
