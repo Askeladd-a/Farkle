@@ -612,23 +612,7 @@ local function drawMessage()
 end
 
 -- === OPTIONS MENU GEOMETRY ===
-local function getButtonsBounds()
-    local buttons = game.layout and game.layout.buttons
-    if not buttons or #buttons == 0 then return nil end
-    local minX, minY = math.huge, math.huge
-    local maxX, maxY = -math.huge, -math.huge
-    for _, b in ipairs(buttons) do
-        if b.x < minX then minX = b.x end
-        if b.y < minY then minY = b.y end
-        if b.x + b.w > maxX then maxX = b.x + b.w end
-        if b.y + b.h > maxY then maxY = b.y + b.h end
-    end
-    return {x = minX, y = minY, w = maxX - minX, h = maxY - minY}
-end
-
-local function rectsIntersect(ax, ay, aw, ah, bx, by, bw, bh)
-    return not (ax + aw <= bx or bx + bw <= ax or ay + ah <= by or by + bh <= ay)
-end
+-- Moved to src/ui/options.lua
 
 
 local function drawOptionsButtonAndMenu()
