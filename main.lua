@@ -57,6 +57,21 @@ local backgroundStripes = {}
 local customCursor
 local boardImage = nil
 
+-- UI: Opzioni (tasto e menu a tendina)
+game.uiOptions = {
+    open = false,
+    buttonHover = false,
+    hoverIndex = nil,
+    menuW = 200,
+    itemH = 32,
+    items = {
+        { label = "Toggle Guide", action = function() game.showGuide = not game.showGuide end },
+        { label = "Restart Game", action = function() startNewGame() end },
+        { label = "Main Menu",    action = function() game.state = "menu" end },
+        { label = "Quit",         action = function() love.event.quit() end },
+    }
+}
+
 local function copyRect(rect)
     if not rect then
         return nil
@@ -578,6 +593,44 @@ local function drawMessage()
     love.graphics.printf(game.message, messageLayout.x + padding, messageLayout.y + padding, messageLayout.w - padding * 2, "center")
 end
 
+local function drawOptionsButtonAndMenu()
+    if not game.layout or not game.layout.optionsButton then return end
+    local btn = game.layout.optionsButton
+    local ui = game.uiOptions
+
+    -- Pulsante circolare con icona ⋮
+    love.graphics.setColor(ui.buttonHover and 0.20 or 0.15, 0.15, 0.17, 0.95)
+    love.graphics.rectangle("fill", btn.x, btn.y, btn.w, btn.h, 8, 8)
+    love.graphics.setColor(0.1, 0.12, 0.16, 1)
+    love.graphics.setLineWidth(2)
+    love.graphics.rectangle("line", btn.x, btn.y, btn.w, btn.h, 8, 8)
+    love.graphics.setColor(0.95, 0.98, 1.0)
+    love.graphics.setFont(fonts.h2)
+    love.graphics.printf("⋮", btn.x, btn.y + (btn.h - fonts.h2:getHeight()) / 2 - 2, btn.w, "center")
+
+    if not ui.open then return end
+
+    -- Menu a tendina sotto al pulsante
+    local menuX = btn.x + btn.w - ui.menuW
+    local menuY = btn.y + btn.h + 6
+    local menuH = #ui.items * ui.itemH
+    love.graphics.setColor(0, 0, 0, 0.25)
+    love.graphics.rectangle("fill", menuX + 2, menuY + 3, ui.menuW, menuH, 8, 8)
+    love.graphics.setColor(0.12, 0.12, 0.14, 0.98)
+    love.graphics.rectangle("fill", menuX, menuY, ui.menuW, menuH, 8, 8)
+
+    for i, item in ipairs(ui.items) do
+        local iy = menuY + (i - 1) * ui.itemH
+        if ui.hoverIndex == i then
+            love.graphics.setColor(0.20, 0.20, 0.24, 1.0)
+            love.graphics.rectangle("fill", menuX, iy, ui.menuW, ui.itemH, 8, 8)
+        end
+        love.graphics.setColor(0.95, 0.98, 1.0)
+        love.graphics.setFont(fonts.body)
+        love.graphics.print(item.label, menuX + 12, iy + (ui.itemH - fonts.body:getHeight()) / 2)
+    end
+end
+
 local function buttonEnabled(label)
     if game.state ~= "playing" or game.winner then
         return label == "Main Menu" or label == "Guide"
@@ -870,6 +923,10 @@ local function drawMenu()
         {label = game.showGuide and "Close Guide" or "Guide", action = function()
             game.showGuide = not game.showGuide
         end},
+        {label = "Options", action = function()
+            game.state = "playing"
+            game.uiOptions.open = true
+        end},
         {label = "Quit", action = function()
             love.event.quit()
         end},
@@ -929,6 +986,25 @@ function love.update(dt)
     local ok, err = pcall(function()
         Dice.updateAnimations(dt)
         updateGame(dt)
+        -- Aggiorna hover per tasto e menu opzioni
+        if game.state == "playing" and game.layout and game.layout.optionsButton then
+            local mx, my = love.mouse.getPosition()
+            local btn = game.layout.optionsButton
+            local ui = game.uiOptions
+            ui.buttonHover = (mx >= btn.x and mx <= btn.x + btn.w and my >= btn.y and my <= btn.y + btn.h)
+            ui.hoverIndex = nil
+            if ui.open then
+                local menuX = btn.x + btn.w - ui.menuW
+                local menuY = btn.y + btn.h + 6
+                for i = 1, #ui.items do
+                    local iy = menuY + (i - 1) * ui.itemH
+                    if mx >= menuX and mx <= menuX + ui.menuW and my >= iy and my <= iy + ui.itemH then
+                        ui.hoverIndex = i
+                        break
+                    end
+                end
+            end
+        end
     end)
     if not ok then
         print("[CRASH] love.update: " .. tostring(err))
@@ -985,6 +1061,7 @@ function love.draw()
             end
         end
         drawGuide()
+        drawOptionsButtonAndMenu()
     end)
     if not ok then
         print("[CRASH] love.draw: " .. tostring(err))
@@ -1020,6 +1097,32 @@ function love.mousepressed(x, y, button)
             game.showGuide = false
             return
         end
+        -- Click su tasto Opzioni e menu
+        if game.state == "playing" and game.layout and game.layout.optionsButton then
+            local btn = game.layout.optionsButton
+            local ui = game.uiOptions
+            local onButton = (x >= btn.x and x <= btn.x + btn.w and y >= btn.y and y <= btn.y + btn.h)
+            if onButton then
+                ui.open = not ui.open
+                return
+            end
+            if ui.open then
+                local menuX = btn.x + btn.w - ui.menuW
+                local menuY = btn.y + btn.h + 6
+                for i = 1, #ui.items do
+                    local iy = menuY + (i - 1) * ui.itemH
+                    if x >= menuX and x <= menuX + ui.menuW and y >= iy and y <= iy + ui.itemH then
+                        local item = ui.items[i]
+                        ui.open = false
+                        item.action()
+                        return
+                    end
+                end
+                -- click fuori chiude
+                ui.open = false
+            end
+        end
+
         if game.layout and game.layout.buttons then
             for _, btn in ipairs(game.layout.buttons) do
                 btn.enabled = buttonEnabled(btn.label)
@@ -1073,6 +1176,10 @@ end
 
 function love.keypressed(key)
     if key == "escape" then
+        if game.uiOptions and game.uiOptions.open then
+            game.uiOptions.open = false
+            return
+        end
         love.event.quit()
     elseif key == "f1" then
         -- Test del crash reporter (solo per debug)
