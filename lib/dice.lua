@@ -13,6 +13,11 @@ local function randomVelocity(range)
     return (random() - 0.5) * range
 end
 
+-- Simple gravity and floor bounce inside tray
+local GRAVITY = 900
+local REST_THRESHOLD = 22
+local ANGULAR_REST = 0.6
+
 function Dice.newDie(tray)
     local cx = tray.x + tray.w * 0.5
     local cy = tray.y + tray.h * 0.5
@@ -84,6 +89,8 @@ function Dice.updateRoll(roll, tray, dt)
         end
 
         -- Fisica di base
+        -- Applica gravità
+        die.vy = die.vy + GRAVITY * dt
         die.x = die.x + die.vx * dt
         die.y = die.y + die.vy * dt
         die.angle = die.angle + die.av * dt
@@ -100,6 +107,24 @@ function Dice.updateRoll(roll, tray, dt)
     for i = 1, #roll do
         for j = i + 1, #roll do
             separateDice(roll[i], roll[j])
+        end
+    end
+
+    -- Arresta dolcemente i dadi quando l'energia è bassa
+    local allRest = true
+    for _, die in ipairs(roll) do
+        local speed = math.sqrt(die.vx * die.vx + die.vy * die.vy)
+        if speed < REST_THRESHOLD and math.abs(die.av) < ANGULAR_REST then
+            die.vx, die.vy, die.av = 0, 0, 0
+        else
+            allRest = false
+        end
+    end
+    if allRest then
+        -- Quando tutti sono a riposo, inchioda l'ultima faccia mostrata e termina rotolamento
+        for _, die in ipairs(roll) do
+            die.isRolling = false
+            die.faceTimer = math.huge
         end
     end
 end
