@@ -14,9 +14,10 @@ local function randomVelocity(range)
 end
 
 -- Arcade physics parameters (top-down)
-local REST_THRESHOLD = 28
-local ANGULAR_REST = 0.8
-local BOUNCE = 0.84
+local REST_THRESHOLD = 16
+local ANGULAR_REST = 0.5
+local BOUNCE = 0.92
+local BOUNCE_JITTER = 0.08
 
 local function biasedUpwardSpeed(range)
     -- Always upwards (negative y), with a minimum kick
@@ -33,9 +34,9 @@ function Dice.newDie(tray)
         x = cx,
         y = cy,
         angle = 0,
-        vx = randomVelocity(900),
-        vy = biasedUpwardSpeed(1200),
-        av = randomVelocity(14),
+        vx = randomVelocity(1400),
+        vy = biasedUpwardSpeed(1600),
+        av = randomVelocity(20),
         faceTimer = 0,
         locked = false,
         isRolling = true,
@@ -44,9 +45,9 @@ end
 
 function Dice.applyThrowImpulse(die, tray)
     -- Reimposta una spinta obliqua verso l'alto con rotazione
-    die.vx = randomVelocity(900)
-    die.vy = biasedUpwardSpeed(1200)
-    die.av = die.av + randomVelocity(14)
+    die.vx = randomVelocity(1400)
+    die.vy = biasedUpwardSpeed(1600)
+    die.av = die.av + randomVelocity(20)
     -- Sposta leggermente verso il basso, così il primo movimento è chiaramente in su
     die.y = math.min(tray.y + tray.h - Dice.RADIUS - 2, die.y + 4)
 end
@@ -59,22 +60,30 @@ local function clampDie(die, tray)
 
     if die.x < left then
         die.x = left
-        die.vx = -die.vx * BOUNCE
-        die.av = die.av + randomVelocity(2)
+        local b = BOUNCE * (1 - BOUNCE_JITTER + (random() * 2 - 1) * BOUNCE_JITTER)
+        die.vx = -die.vx * b
+        die.vy = die.vy * (0.94 + 0.12 * random()) + randomVelocity(80)
+        die.av = die.av + randomVelocity(3)
     elseif die.x > right then
         die.x = right
-        die.vx = -die.vx * BOUNCE
-        die.av = die.av + randomVelocity(2)
+        local b = BOUNCE * (1 - BOUNCE_JITTER + (random() * 2 - 1) * BOUNCE_JITTER)
+        die.vx = -die.vx * b
+        die.vy = die.vy * (0.94 + 0.12 * random()) + randomVelocity(80)
+        die.av = die.av + randomVelocity(3)
     end
 
     if die.y < top then
         die.y = top
-        die.vy = -die.vy * BOUNCE
-        die.av = die.av + randomVelocity(2)
+        local b = BOUNCE * (1 - BOUNCE_JITTER + (random() * 2 - 1) * BOUNCE_JITTER)
+        die.vy = -die.vy * b
+        die.vx = die.vx * (0.94 + 0.12 * random()) + randomVelocity(80)
+        die.av = die.av + randomVelocity(3)
     elseif die.y > bottom then
         die.y = bottom
-        die.vy = -die.vy * BOUNCE
-        die.av = die.av + randomVelocity(2)
+        local b = BOUNCE * (1 - BOUNCE_JITTER + (random() * 2 - 1) * BOUNCE_JITTER)
+        die.vy = -die.vy * b
+        die.vx = die.vx * (0.94 + 0.12 * random()) + randomVelocity(80)
+        die.av = die.av + randomVelocity(3)
     end
 end
 
@@ -90,7 +99,7 @@ local function handleDicePairCollision(a, b)
 
     local nx = dx / dist
     local ny = dy / dist
-    local push = (COLLISION_THRESHOLD - dist) * 0.5
+    local push = (COLLISION_THRESHOLD - dist) * 0.55
     a.x = a.x - nx * push
     a.y = a.y - ny * push
     b.x = b.x + nx * push
@@ -101,25 +110,27 @@ local function handleDicePairCollision(a, b)
     local rvy = a.vy - b.vy
     local rel = rvx * nx + rvy * ny
     if rel < 0 then
-        local e = 0.6 + (random() - 0.5) * 0.2 -- coefficiente con caos
-        local j = -(1 + e) * rel * 0.5
+        local e = 0.72 + (random() - 0.5) * 0.25 -- coefficiente con caos
+        local j = -(1 + e) * rel * 0.52
         a.vx = a.vx + j * nx
         a.vy = a.vy + j * ny
         b.vx = b.vx - j * nx
         b.vy = b.vy - j * ny
         -- Piccolo torque casuale
-        a.av = a.av + (random() - 0.5) * 1.6
-        b.av = b.av + (random() - 0.5) * 1.6
+        a.av = a.av + (random() - 0.5) * 2.2
+        b.av = b.av + (random() - 0.5) * 2.2
     end
 end
 
 function Dice.updateRoll(roll, tray, dt)
     for _, die in ipairs(roll) do
-        -- Aggiorna la faccia del dado
+        -- Aggiorna la faccia del dado (velocità -> frequenza cambio)
         die.faceTimer = die.faceTimer - dt
         if die.faceTimer <= 0 then
+            local speed = math.sqrt((die.vx or 0)^2 + (die.vy or 0)^2) + math.abs(die.av or 0) * Dice.SIZE
             die.value = random(1, 6)
-            die.faceTimer = 0.08
+            local period = 0.18 - math.min(0.14, speed / 3200)
+            die.faceTimer = math.max(0.03, period)
         end
 
         -- Fisica di base (top-down)
@@ -127,16 +138,26 @@ function Dice.updateRoll(roll, tray, dt)
         die.y = die.y + die.vy * dt
         die.angle = die.angle + die.av * dt
 
-        -- Frizione (lieve, per mantenere energia e poi assestare)
-        die.vx = die.vx * 0.992
-        die.vy = die.vy * 0.992
-        die.av = die.av * 0.985
+        -- Frizione dipendente dalla velocità: alta energia -> meno attrito; bassa -> si ferma
+        local speed = math.sqrt(die.vx * die.vx + die.vy * die.vy)
+        local linFric
+        if speed > 1000 then
+            linFric = 0.997
+        elseif speed > 500 then
+            linFric = 0.994
+        else
+            linFric = 0.985
+        end
+        die.vx = die.vx * linFric
+        die.vy = die.vy * linFric
+        local angFric = speed > 400 and 0.991 or 0.982
+        die.av = die.av * angFric
 
         clampDie(die, tray)
     end
 
     -- Collision detection tra dadi (più passaggi per robustezza)
-    for pass = 1, 2 do
+    for pass = 1, 3 do
         for i = 1, #roll do
             for j = i + 1, #roll do
                 handleDicePairCollision(roll[i], roll[j])
@@ -385,6 +406,43 @@ function Dice.drawKeptColumn(area, kept, alignTop)
             y = y,
             angle = 0,
             locked = true, -- visually indicate kept dice
+        })
+    end
+end
+
+-- Disegna i dadi tenuti in fila lungo l'asse delle cerniere (orizzontale)
+function Dice.drawKeptOnHinge(board, kept, isTopRow)
+    if not board or not kept or #kept == 0 then
+        return
+    end
+    local marginX = 60
+    local startX = board.x + marginX
+    local endX = board.x + board.w - marginX
+    if endX <= startX then return end
+
+    local hingeY = board.y + board.h * 0.68
+    local y = hingeY + (isTopRow and -(Dice.RADIUS + 8) or (Dice.RADIUS + 8))
+
+    local availableW = endX - startX
+    local defaultSpacing = Dice.SIZE + 16
+    local spacing
+    if #kept <= 1 then
+        spacing = 0
+    else
+        spacing = math.min(defaultSpacing, availableW / (#kept - 1))
+    end
+
+    local totalW = spacing * math.max(0, #kept - 1)
+    local x0 = startX + (availableW - totalW) * 0.5
+
+    for i, value in ipairs(kept) do
+        local x = (#kept == 1) and (startX + availableW * 0.5) or (x0 + (i - 1) * spacing)
+        Dice.drawDie({
+            value = value,
+            x = x,
+            y = y,
+            angle = 0,
+            locked = true,
         })
     end
 end

@@ -58,6 +58,11 @@ local customCursor
 local boardImage = nil
 local menuBackgroundImage = nil
 
+-- Audio module
+local Audio = require("src.audio")
+local Assets = require("src.assets")
+local OptionsUI = require("src.ui.options")
+
 -- UI: Opzioni (tasto e menu a tendina)
 game.uiOptions = {
     open = false,
@@ -156,70 +161,7 @@ local function loadGameFont(size)
 end
 
 local function refreshFonts(width, height)
-    local base = math.min(width, height)
-
-    local titleSize = math.max(48, math.floor(base * 0.07))
-    local h2Size = math.max(28, math.floor(base * 0.04))
-    local bodySize = math.max(20, math.floor(base * 0.028))
-    local smallSize = math.max(16, math.floor(base * 0.022))
-    local tinySize = math.max(12, math.floor(base * 0.018))
-
-    local function loadChain(paths, size)
-        local loaded = {}
-        for _, p in ipairs(paths) do
-            local f = safeLoadFont(p, size)
-            if f then table.insert(loaded, f) end
-        end
-        local system = love.graphics.newFont(size)
-        local chosen = loaded[1] or system
-        local fallbacks = {}
-        for i = 2, #loaded do table.insert(fallbacks, loaded[i]) end
-        table.insert(fallbacks, system)
-        if chosen and chosen.setFallbacks and #fallbacks > 0 then
-            pcall(function() chosen:setFallbacks(unpack(fallbacks)) end)
-        end
-        if #loaded == 0 then
-            print("[Font] Nessun font custom disponibile, uso system font")
-        end
-        return chosen
-    end
-
-    -- Titoli: preferisci Gregorian, poi rothenbg, pentiment, teutonic, cinzel
-    fonts.title = loadChain({
-        "images/Gregorian.ttf","images/Gregorian.otf","images/gregorian.ttf","images/gregorian.otf",
-        "images/rothenbg.ttf",
-        "images/Pentiment_Textura.otf",
-        "images/teutonic1.ttf",
-        "images/Cinzel-Regular.ttf",
-    }, titleSize)
-    fonts.h2 = loadChain({
-        "images/Gregorian.ttf","images/Gregorian.otf","images/gregorian.ttf","images/gregorian.otf",
-        "images/rothenbg.ttf",
-        "images/Pentiment_Textura.otf",
-        "images/teutonic1.ttf",
-        "images/Cinzel-Regular.ttf",
-    }, h2Size)
-
-    -- Corpo: preferisci Gregorian, poi teutonic, cinzel, pentiment
-    fonts.body = loadChain({
-        "images/Gregorian.ttf","images/Gregorian.otf","images/gregorian.ttf","images/gregorian.otf",
-        "images/teutonic1.ttf",
-        "images/Cinzel-Regular.ttf",
-        "images/Pentiment_Textura.otf",
-    }, bodySize)
-    fonts.small = loadChain({
-        "images/Gregorian.ttf","images/Gregorian.otf","images/gregorian.ttf","images/gregorian.otf",
-        "images/teutonic1.ttf",
-        "images/Cinzel-Regular.ttf",
-        "images/Pentiment_Textura.otf",
-    }, smallSize)
-    fonts.tiny  = love.graphics.newFont(tinySize)
-
-    -- Menu/Help
-    fonts.menu = fonts.h2 or fonts.body
-    fonts.help = love.graphics.newFont(math.max(14, math.floor(base * 0.02)))
-
-    print("[Font] Sizes -> title=" .. titleSize .. ", h2=" .. h2Size .. ", body=" .. bodySize .. ", small=" .. smallSize .. ", tiny=" .. tinySize)
+    fonts = Assets.refreshFonts(width, height)
 end
 
 -- === GAME STATE MANAGEMENT ===
@@ -459,28 +401,16 @@ local function decodeCursor()
 end
 
 local function loadMenuBackground()
-    local bases = {
-        "images/brown_age_by_darkwood67",
-        "images/brown_age",
-    }
-    local exts = {".png", ".jpg", ".jpeg", ".webp", ".PNG", ".JPG", ".JPEG", ".WEBP"}
-    for _, base in ipairs(bases) do
-        for _, ext in ipairs(exts) do
-            local ok_img, img = pcall(love.graphics.newImage, base .. ext)
-            if ok_img and img then
-                menuBackgroundImage = img
-                print("[Menu BG] Loaded: " .. base .. ext)
-                return
-            end
-        end
-    end
-    menuBackgroundImage = nil
-    print("[Menu BG] background not found; using default background")
+    menuBackgroundImage = Assets.loadMenuBackground()
 end
 
 local function loadSelectionImages()
     game.selectionImages = EmbeddedAssets.buildLightImages() or {}
 end
+
+local function playDiceImpact(strength) Audio.playDiceImpact(strength) end
+local function playBookPage() Audio.playBookPage() end
+local function requestQuit() Audio.requestQuit() end
 
 -- === PARTICLE EFFECTS ===
 local function ensureParticles(die)
@@ -682,82 +612,11 @@ local function drawMessage()
 end
 
 -- === OPTIONS MENU GEOMETRY ===
-local function getButtonsBounds()
-    local buttons = game.layout and game.layout.buttons
-    if not buttons or #buttons == 0 then return nil end
-    local minX, minY = math.huge, math.huge
-    local maxX, maxY = -math.huge, -math.huge
-    for _, b in ipairs(buttons) do
-        if b.x < minX then minX = b.x end
-        if b.y < minY then minY = b.y end
-        if b.x + b.w > maxX then maxX = b.x + b.w end
-        if b.y + b.h > maxY then maxY = b.y + b.h end
-    end
-    return {x = minX, y = minY, w = maxX - minX, h = maxY - minY}
-end
+-- Moved to src/ui/options.lua
 
-local function rectsIntersect(ax, ay, aw, ah, bx, by, bw, bh)
-    return not (ax + aw <= bx or bx + bw <= ax or ay + ah <= by or by + bh <= ay)
-end
-
-local function computeOptionsMenuRect()
-    local btn = game.uiOptions.anchor
-    if not btn then return nil end
-    local ui = game.uiOptions
-    local width, height = love.graphics.getDimensions()
-    local menuW, itemH = ui.menuW, ui.itemH
-    local menuH = #ui.items * itemH
-
-    -- Preferito: aperto verso il basso, allineato a destra del pulsante/anchor
-    local menuX = btn.x + btn.w - menuW
-    local menuY = btn.y + btn.h + 6
-
-    local grid = getButtonsBounds()
-    local intersectsDown = grid and rectsIntersect(menuX, menuY, menuW, menuH, grid.x, grid.y, grid.w, grid.h)
-
-    -- Se collide in basso, prova in alto
-    if intersectsDown or (menuY + menuH > height - 8) then
-        local upY = btn.y - 6 - menuH
-        local intersectsUp = grid and rectsIntersect(menuX, upY, menuW, menuH, grid.x, grid.y, grid.w, grid.h)
-        if not intersectsUp and upY >= 8 then
-            return {x = menuX, y = upY, w = menuW, h = menuH}
-        end
-        -- Se collide anche in alto, sposta a sinistra del blocco griglia
-        if grid then
-            local leftX = grid.x - menuW - 8
-            local bestY = (btn.y + btn.h + 6 + menuH <= height - 8) and (btn.y + btn.h + 6)
-                or (btn.y - 6 - menuH >= 8 and (btn.y - 6 - menuH)) or 8
-            return {x = math.max(8, leftX), y = bestY, w = menuW, h = menuH}
-        end
-        -- Fallback: clamp in alto
-        return {x = menuX, y = math.max(8, upY), w = menuW, h = menuH}
-    end
-
-    -- Nessuna collisione: usa verso il basso
-    return {x = menuX, y = menuY, w = menuW, h = menuH}
-end
 
 local function drawOptionsButtonAndMenu()
-    local ui = game.uiOptions
-    if not ui.open then return end
-    local rect = computeOptionsMenuRect()
-    if not rect then return end
-    local menuX, menuY = rect.x, rect.y
-    local menuH = rect.h
-    love.graphics.setColor(0, 0, 0, 0.25)
-    love.graphics.rectangle("fill", menuX + 2, menuY + 3, ui.menuW, menuH, 8, 8)
-    love.graphics.setColor(0.12, 0.12, 0.14, 0.98)
-    love.graphics.rectangle("fill", menuX, menuY, ui.menuW, menuH, 8, 8)
-    for i, item in ipairs(ui.items) do
-        local iy = menuY + (i - 1) * ui.itemH
-        if ui.hoverIndex == i then
-            love.graphics.setColor(0.20, 0.20, 0.24, 1.0)
-            love.graphics.rectangle("fill", menuX, iy, ui.menuW, ui.itemH, 8, 8)
-        end
-        love.graphics.setColor(0.95, 0.98, 1.0)
-        love.graphics.setFont(fonts.body)
-        love.graphics.print(item.label, menuX + 12, iy + (ui.itemH - fonts.body:getHeight()) / 2)
-    end
+    OptionsUI.draw(game, fonts)
 end
 
 local function buttonEnabled(label)
@@ -1118,6 +977,7 @@ function love.load()
         decodeCursor()
         loadSelectionImages()
         Dice.initAnimations()
+        Audio.init()
         game.message = "Welcome back!"
     end)
     if not ok then
@@ -1133,29 +993,10 @@ function love.update(dt)
         updateGame(dt)
         -- Aggiorna hover per tasto e menu opzioni
         if game.state == "playing" and game.layout and game.uiOptions.anchor then
-            local mx, my = love.mouse.getPosition()
-            local btn = game.uiOptions.anchor
-            local ui = game.uiOptions
-            ui.buttonHover = (mx >= btn.x and mx <= btn.x + btn.w and my >= btn.y and my <= btn.y + btn.h)
-            ui.hoverIndex = nil
-            if ui.open then
-                local rect = computeOptionsMenuRect()
-                local menuX, menuY = rect.x, rect.y
-                for i = 1, #ui.items do
-                    local iy = menuY + (i - 1) * ui.itemH
-                    if mx >= menuX and mx <= menuX + ui.menuW and my >= iy and my <= iy + ui.itemH then
-                        ui.hoverIndex = i
-                        break
-                    end
-                end
-                -- Se il mouse è sopra la griglia 2x2, non consumare hover: lascia pass-through
-                local grid = getButtonsBounds()
-                if grid and mx >= grid.x and mx <= grid.x + grid.w and my >= grid.y and my <= grid.y + grid.h then
-                    ui.hoverIndex = nil
-                end
-            end
+            OptionsUI.updateHover(game)
         end
     end)
+        Audio.update()
     if not ok then
         print("[CRASH] love.update: " .. tostring(err))
         local f = io.open("crash_report.txt", "a")
@@ -1190,8 +1031,9 @@ function love.draw()
         end
         -- Colonne dadi tenuti
         if layout.kept and layout.kept.ai and layout.kept.player then
-            Dice.drawKeptColumn(layout.kept.ai, game.kept.ai, true)
-            Dice.drawKeptColumn(layout.kept.player, game.kept.player, false)
+            -- Mostra i tenuti lungo l'asse delle cerniere
+            Dice.drawKeptOnHinge(layout.board, game.kept.ai, true)
+            Dice.drawKeptOnHinge(layout.board, game.kept.player, false)
         end
         -- Dadi
         drawDice()
@@ -1258,21 +1100,7 @@ function love.mousepressed(x, y, button)
                 return
             end
             if ui.open then
-                local rect = computeOptionsMenuRect()
-                local menuX, menuY = rect.x, rect.y
-                for i = 1, #ui.items do
-                    local iy = menuY + (i - 1) * ui.itemH
-                    if x >= menuX and x <= menuX + ui.menuW and y >= iy and y <= iy + ui.itemH then
-                        local item = ui.items[i]
-                        ui.open = false
-                        item.action()
-                        ui.anchor = nil
-                        return
-                    end
-                end
-                -- click fuori: chiudi sempre il dropdown, poi lascia proseguire
-                ui.open = false
-                ui.anchor = nil
+                if OptionsUI.handleMousePressed(game, x, y, requestQuit) then return end
             end
         end
 
@@ -1295,6 +1123,9 @@ function love.mousepressed(x, y, button)
                         -- Apri menu opzioni ancorato al bottone cliccato
                         game.uiOptions.anchor = {x = btn.x, y = btn.y, w = btn.w, h = btn.h}
                         game.uiOptions.open = true
+                    elseif btn.label == "Main Menu" then
+                        playBookPage()
+                        game.state = "menu"
                     end
                     return
                 end
@@ -1341,7 +1172,7 @@ function love.keypressed(key)
             game.uiOptions.anchor = nil
             return
         end
-        love.event.quit()
+        requestQuit()
     elseif key == "f1" then
         -- Test del crash reporter (solo per debug)
         print("Test crash reporter...")
