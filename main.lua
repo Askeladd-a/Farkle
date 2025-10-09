@@ -1014,6 +1014,8 @@ local function updateGame(dt)
                 ensureParticles(die)
             end
             Dice.arrangeScatter(game.layout.trays[getActivePlayer().id], roll)
+            -- Imposta posa isometrica quando i dadi si fermano
+            for _, die in ipairs(roll) do die.pose = "iso" end
             game.rolling = false
             game.rollTimer = 0
             resetSelection()

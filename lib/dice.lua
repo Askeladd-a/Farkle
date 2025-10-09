@@ -205,7 +205,7 @@ function Dice.drawDie(die)
     love.graphics.ellipse("fill", die.x + 8, die.y + Dice.RADIUS + 6, Dice.RADIUS, Dice.RADIUS * 0.55)
     
     -- Prova prima a usare le animazioni, altrimenti usa il rendering tradizionale
-    if DiceAnimations.isInitialized() then
+    if DiceAnimations.isInitialized() and die.pose ~= "iso" then
         local scale = Dice.SIZE / 64  -- Scala da 64px (spritesheet) a 48px (Dice.SIZE)
         
         -- Disegna il dado con animazione
@@ -229,7 +229,12 @@ function Dice.drawDie(die)
 
     love.graphics.push()
     love.graphics.translate(die.x, die.y)
-    love.graphics.rotate(die.angle)
+    if die.pose == "iso" then
+        love.graphics.rotate(math.pi / 4)
+        love.graphics.scale(1, 0.7)
+    else
+        love.graphics.rotate(die.angle)
+    end
 
     local w = Dice.SIZE
     local h = Dice.SIZE
