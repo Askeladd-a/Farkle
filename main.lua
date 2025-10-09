@@ -56,6 +56,7 @@ local winningScore = 5000
 local backgroundStripes = {}
 local customCursor
 local boardImage = nil
+local menuBackgroundImage = nil
 
 -- UI: Opzioni (tasto e menu a tendina)
 game.uiOptions = {
@@ -455,6 +456,21 @@ local function decodeCursor()
     end
 end
 
+local function loadMenuBackground()
+    local base = "images/brown_age"
+    local exts = {".png", ".jpg", ".jpeg", ".webp", ".PNG", ".JPG", ".JPEG", ".WEBP"}
+    for _, ext in ipairs(exts) do
+        local ok_img, img = pcall(love.graphics.newImage, base .. ext)
+        if ok_img and img then
+            menuBackgroundImage = img
+            print("[Menu BG] Loaded: brown_age" .. ext)
+            return
+        end
+    end
+    menuBackgroundImage = nil
+    print("[Menu BG] brown_age image not found; using default background")
+end
+
 local function loadSelectionImages()
     game.selectionImages = EmbeddedAssets.buildLightImages() or {}
 end
@@ -511,6 +527,18 @@ end
 local function drawBackground()
     local width, height = love.graphics.getDimensions()
     love.graphics.clear(0.07, 0.06, 0.08)
+
+    -- Menu background image (cover)
+    if game.state == "menu" and menuBackgroundImage then
+        local iw, ih = menuBackgroundImage:getWidth(), menuBackgroundImage:getHeight()
+        local scale = math.max(width / iw, height / ih)
+        local dx = (width - iw * scale) * 0.5
+        local dy = (height - ih * scale) * 0.5
+        love.graphics.setColor(1, 1, 1, 1)
+        love.graphics.draw(menuBackgroundImage, dx, dy, 0, scale, scale)
+        return
+    end
+
     love.graphics.setColor(0.09, 0.08, 0.11)
     love.graphics.rectangle("fill", 0, 0, width, height)
     love.graphics.setColor(0.12, 0.1, 0.14, 0.25)
@@ -1064,6 +1092,7 @@ function love.load()
         else
             print("wooden_board.png non trovato, useremo la board renderizzata")
         end
+        loadMenuBackground()
         game.layout = Layout.setupLayout(width, height, fonts, BUTTON_LABELS, boardImage)
         setupStripes(height)
         decodeCursor()
