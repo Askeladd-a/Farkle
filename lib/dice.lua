@@ -13,6 +13,11 @@ local function randomVelocity(range)
     return (random() - 0.5) * range
 end
 
+-- Simple gravity and floor bounce inside tray
+local GRAVITY = 900
+local REST_THRESHOLD = 22
+local ANGULAR_REST = 0.6
+
 function Dice.newDie(tray)
     local cx = tray.x + tray.w * 0.5
     local cy = tray.y + tray.h * 0.5
@@ -84,6 +89,8 @@ function Dice.updateRoll(roll, tray, dt)
         end
 
         -- Fisica di base
+        -- Applica gravità
+        die.vy = die.vy + GRAVITY * dt
         die.x = die.x + die.vx * dt
         die.y = die.y + die.vy * dt
         die.angle = die.angle + die.av * dt
@@ -100,6 +107,24 @@ function Dice.updateRoll(roll, tray, dt)
     for i = 1, #roll do
         for j = i + 1, #roll do
             separateDice(roll[i], roll[j])
+        end
+    end
+
+    -- Arresta dolcemente i dadi quando l'energia è bassa
+    local allRest = true
+    for _, die in ipairs(roll) do
+        local speed = math.sqrt(die.vx * die.vx + die.vy * die.vy)
+        if speed < REST_THRESHOLD and math.abs(die.av) < ANGULAR_REST then
+            die.vx, die.vy, die.av = 0, 0, 0
+        else
+            allRest = false
+        end
+    end
+    if allRest then
+        -- Quando tutti sono a riposo, inchioda l'ultima faccia mostrata e termina rotolamento
+        for _, die in ipairs(roll) do
+            die.isRolling = false
+            die.faceTimer = math.huge
         end
     end
 end
@@ -180,7 +205,7 @@ function Dice.drawDie(die)
     love.graphics.ellipse("fill", die.x + 8, die.y + Dice.RADIUS + 6, Dice.RADIUS, Dice.RADIUS * 0.55)
     
     -- Prova prima a usare le animazioni, altrimenti usa il rendering tradizionale
-    if DiceAnimations.isInitialized() then
+    if DiceAnimations.isInitialized() and die.pose ~= "iso" then
         local scale = Dice.SIZE / 64  -- Scala da 64px (spritesheet) a 48px (Dice.SIZE)
         
         -- Disegna il dado con animazione
@@ -204,7 +229,12 @@ function Dice.drawDie(die)
 
     love.graphics.push()
     love.graphics.translate(die.x, die.y)
-    love.graphics.rotate(die.angle)
+    if die.pose == "iso" then
+        love.graphics.rotate(math.pi / 4)
+        love.graphics.scale(1, 0.7)
+    else
+        love.graphics.rotate(die.angle)
+    end
 
     local w = Dice.SIZE
     local h = Dice.SIZE

@@ -56,6 +56,7 @@ local winningScore = 5000
 local backgroundStripes = {}
 local customCursor
 local boardImage = nil
+local menuBackgroundImage = nil
 
 -- UI: Opzioni (tasto e menu a tendina)
 game.uiOptions = {
@@ -447,14 +448,32 @@ end
 
 -- === ASSET LOADING ===
 local function decodeCursor()
-    local imageData = EmbeddedAssets.buildCursorImageData()
-    if imageData then
-        local ok, cursor = pcall(love.mouse.newCursor, imageData, 4, 4)
-        if ok then
-            customCursor = cursor
-            love.mouse.setCursor(customCursor)
+    -- Usa il cursore di sistema "arrow" ed elimina la freccina custom
+    local ok, system = pcall(love.mouse.getSystemCursor, "arrow")
+    if ok and system then
+        love.mouse.setCursor(system)
+        customCursor = nil
+    end
+end
+
+local function loadMenuBackground()
+    local bases = {
+        "images/brown_age_by_darkwood67",
+        "images/brown_age",
+    }
+    local exts = {".png", ".jpg", ".jpeg", ".webp", ".PNG", ".JPG", ".JPEG", ".WEBP"}
+    for _, base in ipairs(bases) do
+        for _, ext in ipairs(exts) do
+            local ok_img, img = pcall(love.graphics.newImage, base .. ext)
+            if ok_img and img then
+                menuBackgroundImage = img
+                print("[Menu BG] Loaded: " .. base .. ext)
+                return
+            end
         end
     end
+    menuBackgroundImage = nil
+    print("[Menu BG] background not found; using default background")
 end
 
 local function loadSelectionImages()
@@ -513,6 +532,18 @@ end
 local function drawBackground()
     local width, height = love.graphics.getDimensions()
     love.graphics.clear(0.07, 0.06, 0.08)
+
+    -- Menu background image (cover)
+    if game.state == "menu" and menuBackgroundImage then
+        local iw, ih = menuBackgroundImage:getWidth(), menuBackgroundImage:getHeight()
+        local scale = math.max(width / iw, height / ih)
+        local dx = (width - iw * scale) * 0.5
+        local dy = (height - ih * scale) * 0.5
+        love.graphics.setColor(1, 1, 1, 1)
+        love.graphics.draw(menuBackgroundImage, dx, dy, 0, scale, scale)
+        return
+    end
+
     love.graphics.setColor(0.09, 0.08, 0.11)
     love.graphics.rectangle("fill", 0, 0, width, height)
     love.graphics.setColor(0.12, 0.1, 0.14, 0.25)
@@ -729,10 +760,12 @@ end
 
 local function buttonEnabled(label)
     if game.state ~= "playing" or game.winner then
+        -- Guide e Options sempre abilitati
         return label == "Options" or label == "Guide"
     end
     local player = getActivePlayer()
     if player.isAI then
+        -- Guide e Options sempre abilitati anche durante turno AI
         return label == "Guide" or label == "Options"
     end
     if label == "Roll Dice" then
@@ -981,6 +1014,8 @@ local function updateGame(dt)
                 ensureParticles(die)
             end
             Dice.arrangeScatter(game.layout.trays[getActivePlayer().id], roll)
+            -- Imposta posa isometrica quando i dadi si fermano
+            for _, die in ipairs(roll) do die.pose = "iso" end
             game.rolling = false
             game.rollTimer = 0
             resetSelection()
@@ -1064,6 +1099,7 @@ function love.load()
         else
             print("wooden_board.png non trovato, useremo la board renderizzata")
         end
+        loadMenuBackground()
         game.layout = Layout.setupLayout(width, height, fonts, BUTTON_LABELS, boardImage)
         setupStripes(height)
         decodeCursor()
@@ -1098,6 +1134,11 @@ function love.update(dt)
                         ui.hoverIndex = i
                         break
                     end
+                end
+                -- Se il mouse è sopra la griglia 2x2, non consumare hover: lascia pass-through
+                local grid = getButtonsBounds()
+                if grid and mx >= grid.x and mx <= grid.x + grid.w and my >= grid.y and my <= grid.y + grid.h then
+                    ui.hoverIndex = nil
                 end
             end
         end
@@ -1216,7 +1257,7 @@ function love.mousepressed(x, y, button)
                         return
                     end
                 end
-                -- click fuori chiude
+                -- click fuori: chiudi sempre il dropdown, poi lascia proseguire
                 ui.open = false
                 ui.anchor = nil
             end
@@ -1226,6 +1267,11 @@ function love.mousepressed(x, y, button)
             for _, btn in ipairs(game.layout.buttons) do
                 btn.enabled = buttonEnabled(btn.label)
                 if btn.enabled and inRect(x, y, btn) then
+                    -- Se il dropdown è aperto e si clicca un bottone della griglia diverso da Options, chiudi
+                    if game.uiOptions and game.uiOptions.open and btn.label ~= "Options" then
+                        game.uiOptions.open = false
+                        game.uiOptions.anchor = nil
+                    end
                     if btn.label == "Roll Dice" then
                         attemptRoll()
                     elseif btn.label == "Bank Points" then
