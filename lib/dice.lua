@@ -347,6 +347,22 @@ function Dice.drawDie(die)
     love.graphics.pop()
 
     if die.locked then drawSelectionOverlay(die) end
+    -- Hover rim-light pulse (if mouse is near and die is interactable)
+    local mx, my = love.mouse.getPosition()
+    local dx = mx - die.x
+    local dy = my - die.y
+    local near = (dx*dx + dy*dy) <= (Dice.RADIUS * Dice.RADIUS * 1.2)
+    if near and not die.isRolling then
+        local t = love.timer.getTime()
+        local pulse = 0.22 + 0.18 * (0.5 + 0.5 * math.sin(t * 6.0))
+        love.graphics.push()
+        love.graphics.translate(die.x, die.y)
+        love.graphics.rotate(die.angle or 0)
+        love.graphics.setColor(0.98, 0.86, 0.38, pulse)
+        love.graphics.setLineWidth(3)
+        love.graphics.rectangle("line", -Dice.SIZE/2 - 3, -Dice.SIZE/2 - 3, Dice.SIZE + 6, Dice.SIZE + 6, 12, 12)
+        love.graphics.pop()
+    end
 end
 
 function Dice.recenterDice(roll, oldTray, newTray)
