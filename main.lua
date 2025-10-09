@@ -58,6 +58,13 @@ local customCursor
 local boardImage = nil
 local menuBackgroundImage = nil
 
+-- Audio SFX
+game.sounds = {
+    dice = {},
+    book = nil,
+    lastDiceTime = 0,
+}
+
 -- UI: Opzioni (tasto e menu a tendina)
 game.uiOptions = {
     open = false,
@@ -484,6 +491,65 @@ end
 
 local function loadSelectionImages()
     game.selectionImages = EmbeddedAssets.buildLightImages() or {}
+end
+
+local function findExistingAudio(base)
+    local exts = {".ogg", ".wav", ".mp3", ".OGG", ".WAV", ".MP3"}
+    for _, ext in ipairs(exts) do
+        local path = base .. ext
+        local ok = pcall(function() return love.filesystem.getInfo(path) end)
+        if ok and love.filesystem.getInfo(path) then
+            return path
+        end
+    end
+    return nil
+end
+
+local function loadSounds()
+    -- Dice impacts: load variants dice-1..dice-29
+    game.sounds.dice = {}
+    for i = 1, 29 do
+        local base = string.format("sounds/dice/dice-%d", i)
+        local path = findExistingAudio(base)
+        if path then
+            local ok, src = pcall(love.audio.newSource, path, "static")
+            if ok and src then table.insert(game.sounds.dice, src) end
+        end
+    end
+    print(string.format("[SFX] Loaded dice sounds: %d", #game.sounds.dice))
+
+    -- Book page
+    local bookBaseCandidates = {"sounds/book_page", "sounds/book-page"}
+    for _, base in ipairs(bookBaseCandidates) do
+        local path = findExistingAudio(base)
+        if path then
+            local ok, src = pcall(love.audio.newSource, path, "static")
+            if ok and src then game.sounds.book = src; print("[SFX] Loaded book page: " .. path) end
+            break
+        end
+    end
+end
+
+local function playDiceImpact(strength)
+    if not game.sounds or not game.sounds.dice or #game.sounds.dice == 0 then return end
+    local now = love.timer.getTime()
+    if now - (game.sounds.lastDiceTime or 0) < 0.05 then return end
+    game.sounds.lastDiceTime = now
+    local idx = love.math.random(1, #game.sounds.dice)
+    local src = game.sounds.dice[idx]
+    local clone = src:clone()
+    local sp = math.max(0.1, (strength or 800) / 1600)
+    clone:setVolume(math.min(1, 0.15 + sp * 0.7))
+    clone:setPitch(0.9 + love.math.random() * 0.2)
+    clone:play()
+end
+
+local function playBookPage()
+    if not game.sounds or not game.sounds.book then return end
+    local clone = game.sounds.book:clone()
+    clone:setVolume(0.8)
+    clone:setPitch(0.96 + love.math.random() * 0.08)
+    clone:play()
 end
 
 -- === PARTICLE EFFECTS ===
