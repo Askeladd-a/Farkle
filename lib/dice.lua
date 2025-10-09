@@ -1,4 +1,5 @@
 local Dice = {}
+local Audio = require("src.audio")
 local DiceAnimations = require("lib.dice_animations")
 
 local random = love.math.random
@@ -64,12 +65,14 @@ local function clampDie(die, tray)
         die.vx = -die.vx * b
         die.vy = die.vy * (0.94 + 0.12 * random()) + randomVelocity(80)
         die.av = die.av + randomVelocity(3)
+        Audio.playDiceImpact(math.sqrt(die.vx*die.vx + die.vy*die.vy))
     elseif die.x > right then
         die.x = right
         local b = BOUNCE * (1 - BOUNCE_JITTER + (random() * 2 - 1) * BOUNCE_JITTER)
         die.vx = -die.vx * b
         die.vy = die.vy * (0.94 + 0.12 * random()) + randomVelocity(80)
         die.av = die.av + randomVelocity(3)
+        Audio.playDiceImpact(math.sqrt(die.vx*die.vx + die.vy*die.vy))
     end
 
     if die.y < top then
@@ -78,12 +81,14 @@ local function clampDie(die, tray)
         die.vy = -die.vy * b
         die.vx = die.vx * (0.94 + 0.12 * random()) + randomVelocity(80)
         die.av = die.av + randomVelocity(3)
+        Audio.playDiceImpact(math.sqrt(die.vx*die.vx + die.vy*die.vy))
     elseif die.y > bottom then
         die.y = bottom
         local b = BOUNCE * (1 - BOUNCE_JITTER + (random() * 2 - 1) * BOUNCE_JITTER)
         die.vy = -die.vy * b
         die.vx = die.vx * (0.94 + 0.12 * random()) + randomVelocity(80)
         die.av = die.av + randomVelocity(3)
+        Audio.playDiceImpact(math.sqrt(die.vx*die.vx + die.vy*die.vy))
     end
 end
 
@@ -119,6 +124,8 @@ local function handleDicePairCollision(a, b)
         -- Piccolo torque casuale
         a.av = a.av + (random() - 0.5) * 2.2
         b.av = b.av + (random() - 0.5) * 2.2
+        local relSpeed = math.sqrt(rvx*rvx + rvy*rvy)
+        Audio.playDiceImpact(relSpeed)
     end
 end
 
@@ -347,6 +354,28 @@ function Dice.drawDie(die)
     love.graphics.pop()
 
     if die.locked then drawSelectionOverlay(die) end
+<<<<<<< Current (Your changes)
+<<<<<<< Current (Your changes)
+=======
+=======
+>>>>>>> Incoming (Background Agent changes)
+    -- Hover rim-light pulse (if mouse is near and die is interactable)
+    local mx, my = love.mouse.getPosition()
+    local dx = mx - die.x
+    local dy = my - die.y
+    local near = (dx*dx + dy*dy) <= (Dice.RADIUS * Dice.RADIUS * 1.2)
+    if near and not die.isRolling then
+        local t = love.timer.getTime()
+        local pulse = 0.22 + 0.18 * (0.5 + 0.5 * math.sin(t * 6.0))
+        love.graphics.push()
+        love.graphics.translate(die.x, die.y)
+        love.graphics.rotate(die.angle or 0)
+        love.graphics.setColor(0.98, 0.86, 0.38, pulse)
+        love.graphics.setLineWidth(3)
+        love.graphics.rectangle("line", -Dice.SIZE/2 - 3, -Dice.SIZE/2 - 3, Dice.SIZE + 6, Dice.SIZE + 6, 12, 12)
+        love.graphics.pop()
+    end
+>>>>>>> Incoming (Background Agent changes)
 end
 
 function Dice.recenterDice(roll, oldTray, newTray)

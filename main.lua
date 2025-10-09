@@ -5,6 +5,7 @@ local EmbeddedAssets = require("lib.embedded_assets")
 local CrashReporter = require("lib.crash_reporter")
 local Layout = require("src.layout")
 local Render = require("src.render")
+local Theme = require("src.theme")
 
 local table_insert = table.insert
 local table_remove = table.remove
@@ -29,7 +30,6 @@ local game = {
     buttons = {},
     showGuide = false,
     buttonsNeedRefresh = true, -- Flag per ottimizzare rebuild pulsanti
-    calib = { active = false, selected = 1, override = nil },
 }
 
 game.rolls.player = {}
@@ -96,13 +96,7 @@ local function snapshotLayout()
     }
 end
 
-local function recomputeLayout()
-    if not love.graphics or not love.graphics.getWidth then return end
-    local width, height = love.graphics.getDimensions()
-    local previousLayout = snapshotLayout()
-    game.layout = Layout.setupLayout(width, height, fonts, BUTTON_LABELS, boardImage, game.calib and game.calib.override)
-    realignDiceAfterLayout(previousLayout)
-end
+-- removed calibration recompute helper
 
 local function realignDiceAfterLayout(oldLayout)
     local trays = game.layout.trays
@@ -248,8 +242,10 @@ end
 local function handleBust()
     local current = getActivePlayer()
     if current.isAI then
+        Audio.playBust()
         endTurn("Bust! Baron von Farkle loses the round.")
     else
+        Audio.playBust()
         endTurn("Bust! You lose the round points.")
     end
 end
@@ -368,6 +364,7 @@ local function bankRound()
     if game.roundScore <= 0 then
         return false
     end
+    Audio.playCoins()
     player.banked = player.banked + game.roundScore
     if player.banked >= winningScore then
         game.winner = player
@@ -787,54 +784,7 @@ local function drawDice()
     end
 end
 
--- === CALIBRATION OVERLAY ===
-local function drawCalibOverlay()
-    if not (game.calib and game.calib.active and game.layout and game.layout.board and game.layout.innerFrame) then return end
-    local b = game.layout.board
-    local f = game.layout.innerFrame
-    local hinge = game.layout.board.hingeRatio or 0.68
-    local lines = {
-        {key = "left",        x1 = b.x + b.w * f.left,        y1 = b.y,                    x2 = b.x + b.w * f.left,        y2 = b.y + b.h},
-        {key = "right",       x1 = b.x + b.w * f.right,       y1 = b.y,                    x2 = b.x + b.w * f.right,       y2 = b.y + b.h},
-        {key = "topTop",      x1 = b.x,                        y1 = b.y + b.h * f.topTop,   x2 = b.x + b.w,                 y2 = b.y + b.h * f.topTop},
-        {key = "topBottom",   x1 = b.x,                        y1 = b.y + b.h * f.topBottom,x2 = b.x + b.w,                 y2 = b.y + b.h * f.topBottom},
-        {key = "bottomTop",   x1 = b.x,                        y1 = b.y + b.h * f.bottomTop,x2 = b.x + b.w,                 y2 = b.y + b.h * f.bottomTop},
-        {key = "bottomBottom",x1 = b.x,                        y1 = b.y + b.h * f.bottomBottom, x2 = b.x + b.w,             y2 = b.y + b.h * f.bottomBottom},
-        {key = "hingeRatio",  x1 = b.x,                        y1 = b.y + b.h * hinge,      x2 = b.x + b.w,                 y2 = b.y + b.h * hinge},
-    }
-    for i, ln in ipairs(lines) do
-        if i == game.calib.selected then
-            love.graphics.setColor(0.1, 0.9, 0.4, 1.0)
-            love.graphics.setLineWidth(3)
-        else
-            love.graphics.setColor(0.1, 0.8, 1.0, 0.8)
-            love.graphics.setLineWidth(2)
-        end
-        love.graphics.line(ln.x1, ln.y1, ln.x2, ln.y2)
-        love.graphics.setFont(fonts.small)
-        love.graphics.setColor(0, 0, 0, 0.55)
-        love.graphics.rectangle("fill", ln.x1 + 6, ln.y1 + 6, 140, fonts.small:getHeight() + 6, 6, 6)
-        love.graphics.setColor(0.96, 0.92, 0.85)
-        love.graphics.print(ln.key, ln.x1 + 10, ln.y1 + 8)
-    end
-    -- HUD help
-    local help = {
-        "F3: toggle calib  |  TAB/1-7: seleziona linea",
-        "Freccia ←/→ regola left/right/hinge  |  ↑/↓ regola top/bottom",
-        "Shift: passo 0.01  Ctrl: passo 0.0005  Altrimenti: 0.0025",
-        "S: stampa valori in console"
-    }
-    local x = b.x
-    local y = b.y - fonts.small:getHeight() * (#help + 1) - 12
-    if y < 8 then y = 8 end
-    love.graphics.setColor(0, 0, 0, 0.55)
-    love.graphics.rectangle("fill", x - 6, y - 6, b.w * 0.6, fonts.small:getHeight() * (#help + 1) + 12, 8, 8)
-    love.graphics.setColor(0.96, 0.92, 0.85)
-    for _, line in ipairs(help) do
-        love.graphics.print(line, x, y)
-        y = y + fonts.small:getHeight() + 2
-    end
-end
+-- calibration overlay removed
 -- === AI CONTEXT INTERFACE ===
 local aiContext = {}
 
@@ -1027,8 +977,17 @@ function love.load()
             print("wooden_board.png non trovato, useremo la board renderizzata")
         end
         loadMenuBackground()
-        -- Layout (supports optional precise inner-frame override)
-        game.layout = Layout.setupLayout(width, height, fonts, BUTTON_LABELS, boardImage, game.calib and game.calib.override)
+        -- Layout con misure precise dell'interno (normalizzate a 1024)
+        local precise = {
+            left = 209/1024,
+            right = 863/1024,
+            topTop = 168/1024,
+            topBottom = 436/1024,
+            bottomTop = 587/1024,
+            bottomBottom = 900/1024,
+            hingeRatio = 0.50195,
+        }
+        game.layout = Layout.setupLayout(width, height, fonts, BUTTON_LABELS, boardImage, precise)
         setupStripes(height)
         decodeCursor()
         loadSelectionImages()
@@ -1093,22 +1052,50 @@ function love.draw()
         end
         -- Dadi
         drawDice()
-        -- Overlay calibrazione (se attivo)
-        drawCalibOverlay()
+        -- (calibration overlay rimosso)
         -- Tasti 2x2 grid a destra della board
         if layout.buttons then
             for _, btn in ipairs(layout.buttons) do
                 btn.enabled = buttonEnabled(btn.label)
-                local fill = btn.enabled and {0.22, 0.18, 0.12, 0.96} or {0.22, 0.18, 0.12, 0.42}
-                love.graphics.setColor(fill)
-                love.graphics.rectangle("fill", btn.x, btn.y, btn.w, btn.h, 12, 12)
-                -- warm edge
-                love.graphics.setColor(0.45, 0.35, 0.2)
+                -- Plaque style
+                local isCTA = (btn.label == "Roll Dice" or btn.label == "Bank Points")
+                local mx, my = love.mouse.getPosition()
+                local hovered = mx >= btn.x and mx <= btn.x + btn.w and my >= btn.y and my <= btn.y + btn.h
+                local pressOffset = (hovered and love.mouse.isDown(1) and btn.enabled) and 2 or 0
+                local alpha = btn.enabled and (hovered and 1.0 or 0.96) or 0.42
+                Theme.setColor({0.14, 0.11, 0.08, alpha})
+                love.graphics.rectangle("fill", btn.x, btn.y + pressOffset, btn.w, btn.h, 12, 12)
+                -- brass edge
+                Theme.setColor(Theme.colors.brass)
                 love.graphics.setLineWidth(2)
-                love.graphics.rectangle("line", btn.x, btn.y, btn.w, btn.h, 12, 12)
-                love.graphics.setColor(0.96, 0.92, 0.85)
+                love.graphics.rectangle("line", btn.x, btn.y + pressOffset, btn.w, btn.h, 12, 12)
+                -- inner stroke
+                Theme.setColor(Theme.colors.brassEdge)
+                love.graphics.rectangle("line", btn.x+2, btn.y+2 + pressOffset, btn.w-4, btn.h-4, 10, 10)
+                -- hover glow
+                if hovered and btn.enabled then
+                    love.graphics.setColor(0.98, 0.86, 0.38, 0.18)
+                    love.graphics.setLineWidth(8)
+                    love.graphics.rectangle("line", btn.x-2, btn.y-2 + pressOffset, btn.w+4, btn.h+4, 14, 14)
+                end
+                -- label
+                if isCTA and btn.enabled then Theme.setColor(Theme.colors.gold) else Theme.setColor(Theme.colors.text) end
                 love.graphics.setFont(fonts.body)
-                love.graphics.printf(btn.label, btn.x, btn.y + btn.h / 2 - fonts.body:getHeight() / 2, btn.w, "center")
+                love.graphics.printf(btn.label, btn.x, btn.y + pressOffset + btn.h / 2 - fonts.body:getHeight() / 2, btn.w, "center")
+                -- coins/IOU props near Bank
+                if btn.label == "Bank Points" then
+                    local cx = btn.x + btn.w - 18
+                    local cy = btn.y + btn.h - 14 + pressOffset
+                    love.graphics.setColor(0.84, 0.71, 0.42, 0.95)
+                    love.graphics.circle("fill", cx, cy, 6)
+                    love.graphics.setColor(0.60, 0.48, 0.25)
+                    love.graphics.circle("line", cx, cy, 6)
+                    -- tiny IOU ticket
+                    love.graphics.setColor(0.96, 0.92, 0.85, 0.9)
+                    love.graphics.rectangle("fill", btn.x + 6, btn.y + btn.h - 12 + pressOffset, 26, 10, 2, 2)
+                    love.graphics.setColor(0.35, 0.27, 0.18)
+                    love.graphics.rectangle("line", btn.x + 6, btn.y + btn.h - 12 + pressOffset, 26, 10, 2, 2)
+                end
             end
         end
         drawGuide()
@@ -1196,6 +1183,7 @@ function love.mousepressed(x, y, button)
             local dy = y - die.y
             if dx * dx + dy * dy <= Dice.RADIUS * Dice.RADIUS then
                 die.locked = not die.locked
+                if die.locked then Audio.playSelect() end
                 ensureParticles(die)
                 refreshSelection()
                 return
@@ -1213,7 +1201,17 @@ function love.resize(width, height)
     local ok, err = pcall(function()
         local previousLayout = snapshotLayout()
         refreshFonts(width, height)
-        game.layout = Layout.setupLayout(width, height, fonts, BUTTON_LABELS, boardImage, game.calib and game.calib.override)
+        -- Usa le stesse misure precise anche al resize
+        local precise = {
+            left = 209/1024,
+            right = 863/1024,
+            topTop = 168/1024,
+            topBottom = 436/1024,
+            bottomTop = 587/1024,
+            bottomBottom = 900/1024,
+            hingeRatio = 0.50195,
+        }
+        game.layout = Layout.setupLayout(width, height, fonts, BUTTON_LABELS, boardImage, precise)
         setupStripes(height)
         realignDiceAfterLayout(previousLayout)
     end)
@@ -1240,59 +1238,6 @@ function love.keypressed(key)
         -- Pulisci i log files (solo per debug)
         print("Pulizia log files...")
         CrashReporter.cleanupLogs()
-    elseif key == "f3" then
-        -- Toggle calibrazione board
-        game.calib.active = not game.calib.active
-        if game.calib.active and not game.calib.override and game.layout and game.layout.innerFrame then
-            game.calib.override = {
-                left = game.layout.innerFrame.left,
-                right = game.layout.innerFrame.right,
-                topTop = game.layout.innerFrame.topTop,
-                topBottom = game.layout.innerFrame.topBottom,
-                bottomTop = game.layout.innerFrame.bottomTop,
-                bottomBottom = game.layout.innerFrame.bottomBottom,
-                hingeRatio = game.layout.board.hingeRatio or 0.68,
-            }
-        end
-        recomputeLayout()
-    elseif game.calib and game.calib.active then
-        local numToIndex = { ["1"]=1,["2"]=2,["3"]=3,["4"]=4,["5"]=5,["6"]=6,["7"]=7 }
-        if key == "tab" then
-            game.calib.selected = (game.calib.selected % 7) + 1
-            return
-        elseif numToIndex[key] then
-            game.calib.selected = numToIndex[key]
-            return
-        end
-        local step = 0.0025
-        if love.keyboard.isDown("lshift") or love.keyboard.isDown("rshift") then step = 0.01 end
-        if love.keyboard.isDown("lctrl") or love.keyboard.isDown("rctrl") then step = 0.0005 end
-        local sel = game.calib.selected
-        local o = game.calib.override
-        if key == "left" then
-            if sel == 1 then o.left = math.max(0, o.left - step)
-            elseif sel == 2 then o.right = math.max(o.left + 0.01, o.right - step)
-            elseif sel == 7 then o.hingeRatio = math.max(0, o.hingeRatio - step) end
-        elseif key == "right" then
-            if sel == 1 then o.left = math.min(o.right - 0.01, o.left + step)
-            elseif sel == 2 then o.right = math.min(1, o.right + step)
-            elseif sel == 7 then o.hingeRatio = math.min(1, o.hingeRatio + step) end
-        elseif key == "up" then
-            if sel == 3 then o.topTop = math.max(0, o.topTop - step)
-            elseif sel == 4 then o.topBottom = math.max(o.topTop + 0.01, o.topBottom - step)
-            elseif sel == 5 then o.bottomTop = math.max(0, o.bottomTop - step)
-            elseif sel == 6 then o.bottomBottom = math.max(o.bottomTop + 0.01, o.bottomBottom - step) end
-        elseif key == "down" then
-            if sel == 3 then o.topTop = math.min(o.topBottom - 0.01, o.topTop + step)
-            elseif sel == 4 then o.topBottom = math.min(1, o.topBottom + step)
-            elseif sel == 5 then o.bottomTop = math.min(o.bottomBottom - 0.01, o.bottomTop + step)
-            elseif sel == 6 then o.bottomBottom = math.min(1, o.bottomBottom + step) end
-        elseif key == "s" then
-            print(string.format("[Calib] left=%.3f right=%.3f topTop=%.3f topBottom=%.3f bottomTop=%.3f bottomBottom=%.3f hingeRatio=%.3f",
-                o.left, o.right, o.topTop, o.topBottom, o.bottomTop, o.bottomBottom, o.hingeRatio))
-        else
-            return
-        end
-        recomputeLayout()
+    -- F3 era usato per calibrazione, ora rimosso
     end
 end

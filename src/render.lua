@@ -31,9 +31,14 @@ function M.drawScoreboard(layout, fonts, game)
         h = layout.board.h * 0.12
     }
     
-    -- Semi-transparent dark background
-    love.graphics.setColor(0.08, 0.06, 0.04, 0.85)
+    -- Brass plaque background
+    love.graphics.setColor(0.1, 0.08, 0.06, 0.95)
     love.graphics.rectangle("fill", playerScore.x, playerScore.y, playerScore.w, playerScore.h, 12, 12)
+    love.graphics.setColor(0.60, 0.48, 0.25)
+    love.graphics.setLineWidth(2)
+    love.graphics.rectangle("line", playerScore.x, playerScore.y, playerScore.w, playerScore.h, 12, 12)
+    love.graphics.setColor(0.74, 0.60, 0.30)
+    love.graphics.rectangle("line", playerScore.x+2, playerScore.y+2, playerScore.w-4, playerScore.h-4, 10, 10)
     
     -- Portrait background (darker circle)
     local portraitSize = playerScore.h * 0.8
@@ -76,21 +81,15 @@ function M.drawScoreboard(layout, fonts, game)
     local textW = fonts.h2:getWidth(scoreText)
     love.graphics.print(scoreText, scoreX - textW/2, scoreY - fonts.h2:getHeight()/2)
     
-    -- Current round score indicator
-    if game.roundScore > 0 then
-        local roundScoreX = scoreX - portraitSize * 0.5
-        local roundScoreY = scoreY + portraitSize * 0.4
-        
-        love.graphics.setColor(0.98, 0.86, 0.38, 0.9) -- Gold tag
-        love.graphics.circle("fill", roundScoreX, roundScoreY, portraitSize * 0.2)
-        love.graphics.setColor(0.99, 0.92, 0.6) -- lighter gold edge
-        love.graphics.circle("line", roundScoreX, roundScoreY, portraitSize * 0.2)
-        
-        love.graphics.setFont(fonts.small)
-        love.graphics.setColor(1, 1, 1)
-        local roundText = tostring(game.roundScore)
-        local roundW = fonts.small:getWidth(roundText)
-        love.graphics.print(roundText, roundScoreX - roundW/2, roundScoreY - fonts.small:getHeight()/2)
+    -- Round gems (up to 3) indicating progress this turn
+    local gems = math.min(3, math.floor((game.roundScore or 0) / 250) + ((game.roundScore or 0) > 0 and 1 or 0))
+    local gx = playerScore.x + playerScore.w - portraitSize * 1.6
+    local gy = playerScore.y + playerScore.h * 0.72
+    for i = 1, gems do
+        love.graphics.setColor(0.98, 0.86, 0.38, 0.95)
+        love.graphics.circle("fill", gx + (i-1) * (portraitSize * 0.22), gy, portraitSize * 0.08)
+        love.graphics.setColor(0.99, 0.92, 0.6)
+        love.graphics.circle("line", gx + (i-1) * (portraitSize * 0.22), gy, portraitSize * 0.08)
     end
     
             -- AI's scoreboard positioned on the left side of the board, above the player's
@@ -101,9 +100,14 @@ function M.drawScoreboard(layout, fonts, game)
         h = layout.board.h * 0.12
     }
     
-    -- Semi-transparent dark background
-    love.graphics.setColor(0.08, 0.06, 0.04, 0.85)
+    -- Brass plaque background
+    love.graphics.setColor(0.1, 0.08, 0.06, 0.95)
     love.graphics.rectangle("fill", aiScore.x, aiScore.y, aiScore.w, aiScore.h, 12, 12)
+    love.graphics.setColor(0.60, 0.48, 0.25)
+    love.graphics.setLineWidth(2)
+    love.graphics.rectangle("line", aiScore.x, aiScore.y, aiScore.w, aiScore.h, 12, 12)
+    love.graphics.setColor(0.74, 0.60, 0.30)
+    love.graphics.rectangle("line", aiScore.x+2, aiScore.y+2, aiScore.w-4, aiScore.h-4, 10, 10)
     
     -- Portrait background (darker circle)
     local aiPortraitX = aiScore.x + portraitSize * 0.3
@@ -127,7 +131,7 @@ function M.drawScoreboard(layout, fonts, game)
     love.graphics.setColor(0.82, 0.78, 0.72)
     love.graphics.print("Dice Master", aiPortraitX + portraitSize * 0.7, aiScore.y + aiScore.h * 0.6)
     
-    -- Draw score in a fancy medallion
+    -- Draw score in a fancy medallion (glow when active player)
     local aiScoreX = aiScore.x + aiScore.w - portraitSize * 0.7
     local aiScoreY = aiScore.y + aiScore.h * 0.5 - portraitSize * 0.3
     
@@ -144,27 +148,53 @@ function M.drawScoreboard(layout, fonts, game)
     local aiScoreText = tostring(player2.banked)
     local aiTextW = fonts.h2:getWidth(aiScoreText)
     love.graphics.print(aiScoreText, aiScoreX - aiTextW/2, aiScoreY - fonts.h2:getHeight()/2)
+
+    -- Active player glow (gold rim) on their plaque
+    local isPlayerActive = (game.players[1] == game.players[game.active])
+    if isPlayerActive then
+        love.graphics.setColor(0.98, 0.86, 0.38, 0.18)
+        love.graphics.setLineWidth(8)
+        love.graphics.rectangle("line", playerScore.x-3, playerScore.y-3, playerScore.w+6, playerScore.h+6, 14, 14)
+    else
+        love.graphics.setColor(0.98, 0.86, 0.38, 0.18)
+        love.graphics.setLineWidth(8)
+        love.graphics.rectangle("line", aiScore.x-3, aiScore.y-3, aiScore.w+6, aiScore.h+6, 14, 14)
+    end
 end
 
 function M.drawLog(layout, fonts, game)
-    -- Reposition the message to appear just above the bottom of the board area
-    local msgWidth = layout.board.w * 0.7
-    local msgHeight = layout.board.h * 0.1
+    -- Compact banner centered with left dice icon and brass frame
+    local msgWidth = layout.board.w * 0.56
+    local msgHeight = math.max(layout.board.h * 0.085, fonts.body:getHeight() + 24)
     local msgX = layout.board.x + (layout.board.w - msgWidth) / 2
     local msgY = layout.board.y + layout.board.h * 0.88
-    
-    -- Semi-transparent dark background
-    love.graphics.setColor(0.1, 0.08, 0.06, 0.88)
-    love.graphics.rectangle("fill", msgX, msgY, msgWidth, msgHeight, 14, 14)
-    love.graphics.setColor(0.35, 0.27, 0.18)
+
+    -- Background and brass frame
+    love.graphics.setColor(0.08, 0.07, 0.06, 0.95)
+    love.graphics.rectangle("fill", msgX, msgY, msgWidth, msgHeight, 12, 12)
+    love.graphics.setColor(0.60, 0.48, 0.25)
     love.graphics.setLineWidth(2)
-    love.graphics.rectangle("line", msgX + 4, msgY + 4, msgWidth - 8, msgHeight - 8, 12, 12)
-    
-    -- Draw the game message
+    love.graphics.rectangle("line", msgX, msgY, msgWidth, msgHeight, 12, 12)
+    love.graphics.setColor(0.74, 0.60, 0.30)
+    love.graphics.rectangle("line", msgX+2, msgY+2, msgWidth-4, msgHeight-4, 10, 10)
+
+    -- Dice icon (simple)
+    local iconSize = math.min(22, msgHeight - 14)
+    local ix = msgX + 12
+    local iy = msgY + (msgHeight - iconSize) / 2
+    love.graphics.setColor(0.96, 0.93, 0.82)
+    love.graphics.rectangle("fill", ix, iy, iconSize, iconSize, 6, 6)
+    love.graphics.setColor(0.25, 0.22, 0.18)
+    love.graphics.setLineWidth(1)
+    love.graphics.rectangle("line", ix, iy, iconSize, iconSize, 6, 6)
+    love.graphics.circle("fill", ix + iconSize*0.35, iy + iconSize*0.35, 2.5)
+    love.graphics.circle("fill", ix + iconSize*0.65, iy + iconSize*0.65, 2.5)
+
+    -- Message text
     love.graphics.setFont(fonts.body)
-    love.graphics.setColor(0.95, 0.92, 0.85)
-    local padding = 18
-    love.graphics.printf(game.message or "Click Roll Dice to begin.", msgX + padding, msgY + padding, msgWidth - padding * 2, "center")
+    love.graphics.setColor(0.96, 0.92, 0.85)
+    local paddingLeft = 12 + iconSize + 10
+    love.graphics.printf(game.message or "Click Roll Dice to begin.", msgX + paddingLeft, msgY + (msgHeight - fonts.body:getHeight())/2, msgWidth - paddingLeft - 12, "left")
 end
 
 return M
