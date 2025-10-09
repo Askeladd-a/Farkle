@@ -60,6 +60,7 @@ local menuBackgroundImage = nil
 
 -- Audio module
 local Audio = require("src.audio")
+local Assets = require("src.assets")
 local OptionsUI = require("src.ui.options")
 
 -- UI: Opzioni (tasto e menu a tendina)
@@ -160,74 +161,7 @@ local function loadGameFont(size)
 end
 
 local function refreshFonts(width, height)
-    local base = math.min(width, height)
-
-    local titleSize = math.max(48, math.floor(base * 0.07))
-    local h2Size = math.max(28, math.floor(base * 0.04))
-    local bodySize = math.max(20, math.floor(base * 0.028))
-    local smallSize = math.max(16, math.floor(base * 0.022))
-    local tinySize = math.max(12, math.floor(base * 0.018))
-
-    local function loadChain(paths, size)
-        local loaded = {}
-        for _, p in ipairs(paths) do
-            local f = safeLoadFont(p, size)
-            if f then table.insert(loaded, f) end
-        end
-        local system = love.graphics.newFont(size)
-        local chosen = loaded[1] or system
-        local fallbacks = {}
-        for i = 2, #loaded do table.insert(fallbacks, loaded[i]) end
-        table.insert(fallbacks, system)
-        if chosen and chosen.setFallbacks and #fallbacks > 0 then
-            pcall(function() chosen:setFallbacks(unpack(fallbacks)) end)
-        end
-        if #loaded == 0 then
-            print("[Font] Nessun font custom disponibile, uso system font")
-        end
-        return chosen
-    end
-
-    -- Titoli: preferisci Gregorian, poi rothenbg, pentiment, teutonic, cinzel
-    fonts.title = loadChain({
-        "fonts/Gregorian.ttf","fonts/Gregorian.otf","fonts/gregorian.ttf","fonts/gregorian.otf",
-        "images/Gregorian.ttf","images/Gregorian.otf","images/gregorian.ttf","images/gregorian.otf",
-        "fonts/rothenbg.ttf","images/rothenbg.ttf",
-        "fonts/Pentiment_Textura.otf","images/Pentiment_Textura.otf",
-        "fonts/teutonic1.ttf","images/teutonic1.ttf",
-        "fonts/Cinzel-Regular.ttf","images/Cinzel-Regular.ttf",
-    }, titleSize)
-    fonts.h2 = loadChain({
-        "fonts/Gregorian.ttf","fonts/Gregorian.otf","fonts/gregorian.ttf","fonts/gregorian.otf",
-        "images/Gregorian.ttf","images/Gregorian.otf","images/gregorian.ttf","images/gregorian.otf",
-        "fonts/rothenbg.ttf","images/rothenbg.ttf",
-        "fonts/Pentiment_Textura.otf","images/Pentiment_Textura.otf",
-        "fonts/teutonic1.ttf","images/teutonic1.ttf",
-        "fonts/Cinzel-Regular.ttf","images/Cinzel-Regular.ttf",
-    }, h2Size)
-
-    -- Corpo: preferisci Gregorian, poi teutonic, cinzel, pentiment
-    fonts.body = loadChain({
-        "fonts/Gregorian.ttf","fonts/Gregorian.otf","fonts/gregorian.ttf","fonts/gregorian.otf",
-        "images/Gregorian.ttf","images/Gregorian.otf","images/gregorian.ttf","images/gregorian.otf",
-        "fonts/teutonic1.ttf","images/teutonic1.ttf",
-        "fonts/Cinzel-Regular.ttf","images/Cinzel-Regular.ttf",
-        "fonts/Pentiment_Textura.otf","images/Pentiment_Textura.otf",
-    }, bodySize)
-    fonts.small = loadChain({
-        "fonts/Gregorian.ttf","fonts/Gregorian.otf","fonts/gregorian.ttf","fonts/gregorian.otf",
-        "images/Gregorian.ttf","images/Gregorian.otf","images/gregorian.ttf","images/gregorian.otf",
-        "fonts/teutonic1.ttf","images/teutonic1.ttf",
-        "fonts/Cinzel-Regular.ttf","images/Cinzel-Regular.ttf",
-        "fonts/Pentiment_Textura.otf","images/Pentiment_Textura.otf",
-    }, smallSize)
-    fonts.tiny  = love.graphics.newFont(tinySize)
-
-    -- Menu/Help
-    fonts.menu = fonts.h2 or fonts.body
-    fonts.help = love.graphics.newFont(math.max(14, math.floor(base * 0.02)))
-
-    print("[Font] Sizes -> title=" .. titleSize .. ", h2=" .. h2Size .. ", body=" .. bodySize .. ", small=" .. smallSize .. ", tiny=" .. tinySize)
+    fonts = Assets.refreshFonts(width, height)
 end
 
 -- === GAME STATE MANAGEMENT ===
@@ -467,23 +401,7 @@ local function decodeCursor()
 end
 
 local function loadMenuBackground()
-    local bases = {
-        "images/brown_age_by_darkwood67",
-        "images/brown_age",
-    }
-    local exts = {".png", ".jpg", ".jpeg", ".webp", ".PNG", ".JPG", ".JPEG", ".WEBP"}
-    for _, base in ipairs(bases) do
-        for _, ext in ipairs(exts) do
-            local ok_img, img = pcall(love.graphics.newImage, base .. ext)
-            if ok_img and img then
-                menuBackgroundImage = img
-                print("[Menu BG] Loaded: " .. base .. ext)
-                return
-            end
-        end
-    end
-    menuBackgroundImage = nil
-    print("[Menu BG] background not found; using default background")
+    menuBackgroundImage = Assets.loadMenuBackground()
 end
 
 local function loadSelectionImages()
