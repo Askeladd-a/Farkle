@@ -29,11 +29,22 @@ local function findExistingAudio(base)
   return nil
 end
 
+local function tryBases(bases)
+  for _, b in ipairs(bases) do
+    local p = findExistingAudio(b)
+    if p then return p end
+  end
+  return nil
+end
+
 function Audio.init()
   Audio.sounds.dice = {}
   for i = 1, 29 do
-    local base = string.format("sounds/dice/dice-%d", i)
-    local path = findExistingAudio(base)
+    local bases = {
+      string.format("sounds/dice/dice-%d", i),
+      string.format("sound/dice/dice-%d", i),
+    }
+    local path = tryBases(bases)
     if path then
       local ok, src = pcall(love.audio.newSource, path, "static")
       if ok and src then table.insert(Audio.sounds.dice, src) end
@@ -41,41 +52,47 @@ function Audio.init()
   end
   print(string.format("[SFX] Dice variants loaded: %d", #Audio.sounds.dice))
 
-  local bookBase = findExistingAudio("sounds/book_page") or findExistingAudio("sounds/book-page")
+  local bookBase = tryBases({
+    "sounds/book_page", "sounds/book-page",
+    "sound/menu/Book_Page", "sound/menu/book_page"
+  })
   if bookBase then
     local ok, src = pcall(love.audio.newSource, bookBase, "static")
     if ok and src then Audio.sounds.book = src; print("[SFX] Loaded book page: " .. bookBase) end
   end
 
-  local handleBase = findExistingAudio("sounds/book_handle") or findExistingAudio("sounds/book-handle")
+  local handleBase = tryBases({
+    "sounds/book_handle", "sounds/book-handle",
+    "sound/menu/Book_Handle", "sound/menu/book_handle"
+  })
   if handleBase then
     local ok, src = pcall(love.audio.newSource, handleBase, "static")
     if ok and src then Audio.sounds.handle = src; print("[SFX] Loaded book handle: " .. handleBase) end
   end
 
   -- Coins jingle for banking
-  local coinsBase = findExistingAudio("sounds/ui/coins") or findExistingAudio("sounds/coins")
+  local coinsBase = tryBases({"sounds/ui/coins", "sounds/coins", "sound/ui/coins", "sound/coins"})
   if coinsBase then
     local ok, src = pcall(love.audio.newSource, coinsBase, "static")
     if ok and src then Audio.sounds.coins = src; print("[SFX] Loaded coins: " .. coinsBase) end
   end
 
   -- Select/lock dice SFX
-  local selectBase = findExistingAudio("sounds/ui/select") or findExistingAudio("sounds/select")
+  local selectBase = tryBases({"sounds/ui/select", "sounds/select", "sound/ui/select", "sound/select"})
   if selectBase then
     local ok, src = pcall(love.audio.newSource, selectBase, "static")
     if ok and src then Audio.sounds.select = src; print("[SFX] Loaded select: " .. selectBase) end
   end
 
   -- Bust/farkle SFX
-  local bustBase = findExistingAudio("sounds/ui/bust") or findExistingAudio("sounds/bust")
+  local bustBase = tryBases({"sounds/ui/bust", "sounds/bust", "sound/ui/bust", "sound/bust"})
   if bustBase then
     local ok, src = pcall(love.audio.newSource, bustBase, "static")
     if ok and src then Audio.sounds.bust = src; print("[SFX] Loaded bust: " .. bustBase) end
   end
 
   -- Ambience loop
-  local ambBase = findExistingAudio("sounds/ambience/tavern") or findExistingAudio("sounds/ambience")
+  local ambBase = tryBases({"sounds/ambience/tavern", "sound/ambience/tavern", "sounds/ambience", "sound/ambience"})
   if ambBase then
     local ok, src = pcall(love.audio.newSource, ambBase, "stream")
     if ok and src then
