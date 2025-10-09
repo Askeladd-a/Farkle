@@ -6,8 +6,9 @@ local anim8 = require("lib.anim8")
 local DiceAnimations = {}
 
 -- Variabili globali per le animazioni
-local diceImage = nil
+local diceImage = nil          -- faces / base layer
 local diceGrid = nil
+local borderImage = nil        -- optional border/outline layer
 local animations = {}
 
 -- Inizializza le animazioni dei dadi
@@ -46,7 +47,7 @@ function DiceAnimations.init()
     local imageHeight = diceImage:getHeight()
     print(string.format("[DiceAnimations] Image size %dx%d (frame %dx%d)", imageWidth, imageHeight, frameWidth, frameHeight))
 
-    -- Try to load an XML atlas if present (TextureAtlas / SubTexture format)
+    -- Try to load an XML atlas if present (TextureAtlas / SubTexture format) for faces
     local atlasPath = "images/dice_spritesheet.xml"
     local atlasOK, atlasContents = pcall(love.filesystem.read, atlasPath)
     local success, result
@@ -73,9 +74,8 @@ function DiceAnimations.init()
                 end
             end
             local frames = { quadsByIndex[1], quadsByIndex[2], quadsByIndex[3], quadsByIndex[4], quadsByIndex[5], quadsByIndex[6] }
-            local rollingAnim = anim8.newAnimation(frames, 0.1)
             return {
-                rolling = rollingAnim,
+                frames = frames,
                 face1 = anim8.newAnimation({frames[1]}, 1),
                 face2 = anim8.newAnimation({frames[2]}, 1),
                 face3 = anim8.newAnimation({frames[3]}, 1),
@@ -104,9 +104,8 @@ function DiceAnimations.init()
                     local quadTable = diceGrid(x, y)
                     frames[#frames + 1] = quadTable[1]
                 end
-                local rollingAnim = anim8.newAnimation(frames, 0.1)
                 return {
-                    rolling = rollingAnim,
+                    frames = frames,
                     face1 = anim8.newAnimation({frames[1]}, 1),
                     face2 = anim8.newAnimation({frames[2]}, 1),
                     face3 = anim8.newAnimation({frames[3]}, 1),
@@ -120,33 +119,41 @@ function DiceAnimations.init()
     
     if success then
         animations = result or {}
-        -- Se per qualche motivo non esiste l'animazione di rolling, creala come fallback
-        if not animations.rolling then
-            local ok, anim = pcall(function()
-                -- Prova prioritariamente una riga orizzontale, poi la griglia 2x3
-                if diceGrid.width >= 6 then
-                    return anim8.newAnimation(diceGrid('1-6', 1), 0.1)
-                else
-                    return anim8.newAnimation(diceGrid('1-2', '1-3'), 0.1)
-                end
-            end)
-            if ok and anim then
-                animations.rolling = anim
-                print("[DiceAnimations] Rolling animation fallback creata")
-            else
-                print("[DiceAnimations] Impossibile creare rolling animation di fallback: " .. tostring(anim))
-            end
-        end
-
-        print("Animazioni create con successo - Layout: " .. (isHorizontalLayout and "Orizzontale 1x6" or "Griglia 2x3"))
-        local animNames = {}
-        for name, _ in pairs(animations) do
-            table.insert(animNames, name)
-        end
-        print("Animazioni disponibili: " .. table.concat(animNames, ", "))
     else
         print("Errore nella creazione delle animazioni: " .. tostring(result))
         animations = {}
+    end
+
+    -- Build rolling animations at multiple speeds if we have frames
+    if animations.frames then
+        local frames = animations.frames
+        animations.rolling_slow = anim8.newAnimation(frames, 0.14)
+        animations.rolling_med  = anim8.newAnimation(frames, 0.09)
+        animations.rolling_fast = anim8.newAnimation(frames, 0.05)
+    end
+
+    -- Try to load optional BORDER overlay sprite/atlas
+    local bOK, bImg = pcall(love.graphics.newImage, "images/border_dice_spritesheet.png")
+    if bOK and bImg then
+        borderImage = bImg
+        -- Attempt to map frames via atlas xml
+        local borderAtlas = "images/dice_border.xml"
+        local aOK, aContents = pcall(love.filesystem.read, borderAtlas)
+        if aOK and aContents then
+            local bQuads = {}
+            for name, x, y, w, h in aContents:gmatch('<SubTexture%s+name="([^"]+)"%s+x="(%d+)"%s+y="(%d+)"%s+width="(%d+)"%s+height="(%d+)"') do
+                local nx, ny, nw, nh = tonumber(x), tonumber(y), tonumber(w), tonumber(h)
+                local quad = love.graphics.newQuad(nx, ny, nw, nh, borderImage:getWidth(), borderImage:getHeight())
+                local idx = tonumber(name:match("(%d+)") or "")
+                if idx then bQuads[idx] = quad end
+            end
+            animations.border_faces = bQuads
+            if bQuads[1] then
+                animations.border_rolling_slow = anim8.newAnimation({bQuads[1], bQuads[2], bQuads[3], bQuads[4], bQuads[5], bQuads[6]}, 0.14)
+                animations.border_rolling_med  = anim8.newAnimation({bQuads[1], bQuads[2], bQuads[3], bQuads[4], bQuads[5], bQuads[6]}, 0.09)
+                animations.border_rolling_fast = anim8.newAnimation({bQuads[1], bQuads[2], bQuads[3], bQuads[4], bQuads[5], bQuads[6]}, 0.05)
+            end
+        end
     end
 end
 
@@ -281,40 +288,63 @@ function DiceAnimations.drawDie(die, x, y, scale, rotation)
     -- Assicurati che il colore sia opaco
     love.graphics.setColor(1, 1, 1, 1)
     
-    -- Scegli l'animazione appropriata
-    local animation
-    if die.isRolling then
-        animation = animations.rolling
-    else
-        animation = DiceAnimations.getFaceAnimation(die.value)
+    -- Scegli l'animazione appropriata in base alla velocità
+    local speed = 0
+    if die and die.vx and die.vy then
+        speed = math.sqrt(die.vx * die.vx + die.vy * die.vy)
     end
-    
-    -- Prova prima le animazioni, poi fallback se necessario
-    if animation and animation.draw then
-        local success = pcall(function() 
-            animation:draw(diceImage, -32, -32)  -- Centra l'animazione
-        end)
-        if success then
-            print("Animazione disegnata con successo per dado valore " .. (die.value or "nil"))
+    local rollingAnim
+    if animations.rolling_fast then
+        if speed > 600 then
+            rollingAnim = animations.rolling_fast
+        elseif speed > 280 then
+            rollingAnim = animations.rolling_med
         else
-            print("Errore nel disegno dell'animazione per dado valore " .. (die.value or "nil"))
-            -- Fallback: disegna un dado bianco solido
-            love.graphics.setColor(1, 1, 1, 1)  -- Bianco puro
-            love.graphics.rectangle("fill", -32, -32, 64, 64, 8, 8)
-            love.graphics.setColor(0, 0, 0, 1)
-            love.graphics.setLineWidth(3)
-            love.graphics.rectangle("line", -32, -32, 64, 64, 8, 8)
-            DiceAnimations.drawSimplePips(die.value or 1)
+            rollingAnim = animations.rolling_slow
         end
-    else
-        print("Nessuna animazione disponibile per dado valore " .. (die.value or "nil") .. " - isRolling: " .. tostring(die.isRolling))
-        -- Fallback: disegna un dado bianco solido
-        love.graphics.setColor(1, 1, 1, 1)  -- Bianco puro
+    end
+
+    local animation = die.isRolling and rollingAnim or DiceAnimations.getFaceAnimation(die.value)
+
+    -- Base layer (faces)
+    if animation and animation.draw then
+        local ok = pcall(function()
+            animation:draw(diceImage, -32, -32)
+        end)
+        if not ok then animation = nil end
+    end
+    if not animation then
+        -- Fallback: dado solido con pip
+        love.graphics.setColor(1, 1, 1, 1)
         love.graphics.rectangle("fill", -32, -32, 64, 64, 8, 8)
         love.graphics.setColor(0, 0, 0, 1)
         love.graphics.setLineWidth(3)
         love.graphics.rectangle("line", -32, -32, 64, 64, 8, 8)
         DiceAnimations.drawSimplePips(die.value or 1)
+    end
+
+    -- Overlay border layer (optional)
+    if borderImage and animations.border_faces then
+        local bAnim
+        if die.isRolling then
+            if speed > 600 then
+                bAnim = animations.border_rolling_fast
+            elseif speed > 280 then
+                bAnim = animations.border_rolling_med
+            else
+                bAnim = animations.border_rolling_slow
+            end
+        else
+            local quad = animations.border_faces[math.max(1, math.min(6, die.value or 1))]
+            if quad then
+                love.graphics.setColor(1,1,1,1)
+                love.graphics.draw(borderImage, quad, -32, -32)
+            end
+        end
+        if bAnim and bAnim.draw then
+            love.graphics.setColor(1,1,1,1)
+            bAnim:draw(borderImage, -32, -32)
+        end
     end
     
     love.graphics.pop()
