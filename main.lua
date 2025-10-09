@@ -62,6 +62,7 @@ local menuBackgroundImage = nil
 game.sounds = {
     dice = {},
     book = nil,
+    handle = nil,
     lastDiceTime = 0,
 }
 
@@ -528,6 +529,16 @@ local function loadSounds()
             break
         end
     end
+    -- Book handle (quit)
+    local handleBaseCandidates = {"sounds/book_handle", "sounds/book-handle"}
+    for _, base in ipairs(handleBaseCandidates) do
+        local path = findExistingAudio(base)
+        if path then
+            local ok, src = pcall(love.audio.newSource, path, "static")
+            if ok and src then game.sounds.handle = src; print("[SFX] Loaded book handle: " .. path) end
+            break
+        end
+    end
 end
 
 local function playDiceImpact(strength)
@@ -550,6 +561,20 @@ local function playBookPage()
     clone:setVolume(0.8)
     clone:setPitch(0.96 + love.math.random() * 0.08)
     clone:play()
+end
+
+local function playBookHandle()
+    if not game.sounds or not game.sounds.handle then return end
+    local clone = game.sounds.handle:clone()
+    clone:setVolume(0.9)
+    clone:setPitch(0.98 + love.math.random() * 0.04)
+    clone:play()
+end
+
+local function requestQuit()
+    if game.pendingQuitAt then return end
+    playBookHandle()
+    game.pendingQuitAt = (love.timer.getTime() + 0.5)
 end
 
 -- === PARTICLE EFFECTS ===
@@ -1188,6 +1213,7 @@ function love.load()
         decodeCursor()
         loadSelectionImages()
         Dice.initAnimations()
+        loadSounds()
         game.message = "Welcome back!"
     end)
     if not ok then
@@ -1336,7 +1362,11 @@ function love.mousepressed(x, y, button)
                     if x >= menuX and x <= menuX + ui.menuW and y >= iy and y <= iy + ui.itemH then
                         local item = ui.items[i]
                         ui.open = false
-                        item.action()
+                        if item.label == "Exit Game" or item.label == "Quit" then
+                            requestQuit()
+                        else
+                            item.action()
+                        end
                         ui.anchor = nil
                         return
                     end
@@ -1366,6 +1396,9 @@ function love.mousepressed(x, y, button)
                         -- Apri menu opzioni ancorato al bottone cliccato
                         game.uiOptions.anchor = {x = btn.x, y = btn.y, w = btn.w, h = btn.h}
                         game.uiOptions.open = true
+                    elseif btn.label == "Main Menu" then
+                        playBookPage()
+                        game.state = "menu"
                     end
                     return
                 end
@@ -1412,7 +1445,7 @@ function love.keypressed(key)
             game.uiOptions.anchor = nil
             return
         end
-        love.event.quit()
+        requestQuit()
     elseif key == "f1" then
         -- Test del crash reporter (solo per debug)
         print("Test crash reporter...")
