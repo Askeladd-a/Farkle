@@ -1049,7 +1049,7 @@ local function drawMenu()
     local width, height = love.graphics.getDimensions()
     love.graphics.setFont(fonts.title)
     -- Testo con contorno per visibilità su sfondi chiari/scuri
-    local title = "Farkle"
+    local title = "Dice & Debts"
     local ty = height * 0.25
     -- Ombra/contorno scuro
     love.graphics.setColor(0, 0, 0, 0.75)
