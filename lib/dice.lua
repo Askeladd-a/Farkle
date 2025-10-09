@@ -6,33 +6,49 @@ local random = love.math.random
 -- === COSTANTI ===
 Dice.SIZE = 48
 Dice.RADIUS = Dice.SIZE * 0.5
-local COLLISION_THRESHOLD = Dice.SIZE * 0.92  -- Soglia per separazione dadi
+local COLLISION_THRESHOLD = Dice.SIZE * 1.02  -- Soglia per separazione (>= diametro)
 local PIP_OFFSET = 6  -- Offset per i pip dal bordo
 
 local function randomVelocity(range)
     return (random() - 0.5) * range
 end
 
--- Simple gravity and floor bounce inside tray
-local GRAVITY = 900
+-- Arcade physics parameters (top-down)
 local REST_THRESHOLD = 22
 local ANGULAR_REST = 0.6
+local BOUNCE = 0.75
+
+local function biasedUpwardSpeed(range)
+    -- Always upwards (negative y), with a minimum kick
+    local v = -math.abs(randomVelocity(range)) - range * 0.2
+    return v
+end
 
 function Dice.newDie(tray)
     local cx = tray.x + tray.w * 0.5
-    local cy = tray.y + tray.h * 0.5
+    -- Spawn verso la parte bassa del tray per enfatizzare il lancio verso l'alto
+    local cy = tray.y + tray.h * (0.78 + 0.12 * random())
     return {
         value = random(1, 6),
         x = cx,
         y = cy,
         angle = 0,
-        vx = randomVelocity(520),
-        vy = randomVelocity(420),
-        av = randomVelocity(8),
+        vx = randomVelocity(620),
+        vy = biasedUpwardSpeed(680),
+        av = randomVelocity(10),
         faceTimer = 0,
         locked = false,
         isRolling = true,
     }
+end
+
+function Dice.applyThrowImpulse(die, tray)
+    -- Reimposta una spinta obliqua verso l'alto con rotazione
+    die.vx = randomVelocity(620)
+    die.vy = biasedUpwardSpeed(680)
+    die.av = die.av + randomVelocity(10)
+    -- Sposta leggermente verso il basso, così il primo movimento è chiaramente in su
+    die.y = math.min(tray.y + tray.h - Dice.RADIUS - 2, die.y + 4)
 end
 
 local function clampDie(die, tray)
@@ -43,39 +59,57 @@ local function clampDie(die, tray)
 
     if die.x < left then
         die.x = left
-        die.vx = -die.vx * 0.75
+        die.vx = -die.vx * BOUNCE
+        die.av = die.av + randomVelocity(2)
     elseif die.x > right then
         die.x = right
-        die.vx = -die.vx * 0.75
+        die.vx = -die.vx * BOUNCE
+        die.av = die.av + randomVelocity(2)
     end
 
     if die.y < top then
         die.y = top
-        die.vy = -die.vy * 0.75
+        die.vy = -die.vy * BOUNCE
+        die.av = die.av + randomVelocity(2)
     elseif die.y > bottom then
         die.y = bottom
-        die.vy = -die.vy * 0.75
+        die.vy = -die.vy * BOUNCE
+        die.av = die.av + randomVelocity(2)
     end
 end
 
-local function separateDice(a, b)
+local function handleDicePairCollision(a, b)
     local dx = b.x - a.x
     local dy = b.y - a.y
     local dist = math.sqrt(dx * dx + dy * dy)
-    
     if dist == 0 then
         dx, dy = random() - 0.5, random() - 0.5
         dist = math.sqrt(dx * dx + dy * dy)
     end
-    
-    if dist < COLLISION_THRESHOLD then
-        local push = (COLLISION_THRESHOLD - dist) * 0.5
-        local nx = dx / dist
-        local ny = dy / dist
-        a.x = a.x - nx * push
-        a.y = a.y - ny * push
-        b.x = b.x + nx * push
-        b.y = b.y + ny * push
+    if dist >= COLLISION_THRESHOLD then return end
+
+    local nx = dx / dist
+    local ny = dy / dist
+    local push = (COLLISION_THRESHOLD - dist) * 0.5
+    a.x = a.x - nx * push
+    a.y = a.y - ny * push
+    b.x = b.x + nx * push
+    b.y = b.y + ny * push
+
+    -- Impulso elastico semplificato lungo la normale
+    local rvx = a.vx - b.vx
+    local rvy = a.vy - b.vy
+    local rel = rvx * nx + rvy * ny
+    if rel < 0 then
+        local e = 0.6 + (random() - 0.5) * 0.2 -- coefficiente con caos
+        local j = -(1 + e) * rel * 0.5
+        a.vx = a.vx + j * nx
+        a.vy = a.vy + j * ny
+        b.vx = b.vx - j * nx
+        b.vy = b.vy - j * ny
+        -- Piccolo torque casuale
+        a.av = a.av + (random() - 0.5) * 1.6
+        b.av = b.av + (random() - 0.5) * 1.6
     end
 end
 
@@ -88,9 +122,7 @@ function Dice.updateRoll(roll, tray, dt)
             die.faceTimer = 0.08
         end
 
-        -- Fisica di base
-        -- Applica gravità
-        die.vy = die.vy + GRAVITY * dt
+        -- Fisica di base (top-down)
         die.x = die.x + die.vx * dt
         die.y = die.y + die.vy * dt
         die.angle = die.angle + die.av * dt
@@ -103,10 +135,12 @@ function Dice.updateRoll(roll, tray, dt)
         clampDie(die, tray)
     end
 
-    -- Collision detection tra dadi
-    for i = 1, #roll do
-        for j = i + 1, #roll do
-            separateDice(roll[i], roll[j])
+    -- Collision detection tra dadi (più passaggi per robustezza)
+    for pass = 1, 2 do
+        for i = 1, #roll do
+            for j = i + 1, #roll do
+                handleDicePairCollision(roll[i], roll[j])
+            end
         end
     end
 
@@ -125,6 +159,21 @@ function Dice.updateRoll(roll, tray, dt)
         for _, die in ipairs(roll) do
             die.isRolling = false
             die.faceTimer = math.huge
+        end
+    end
+end
+
+-- Scatter iniziale per evitare sovrapposizioni alla creazione
+function Dice.initialScatter(tray, roll)
+    if not roll or #roll == 0 then return end
+    for _ = 1, 6 do
+        for i = 1, #roll do
+            clampDie(roll[i], tray)
+        end
+        for i = 1, #roll do
+            for j = i + 1, #roll do
+                handleDicePairCollision(roll[i], roll[j])
+            end
         end
     end
 end
