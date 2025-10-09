@@ -51,7 +51,7 @@ function Assets.refreshFonts(width, height)
 
   local fonts = {
     title = loadChain(titlePaths, sizes.title),
-    h2    = loadChain(titlePaths, sizes.h2),
+    h2    = loadChain(bodyPaths,  sizes.h2),  -- UI headings use sans for readability
     body  = loadChain(bodyPaths,  sizes.body),
     small = loadChain(bodyPaths,  sizes.small),
     tiny  = love.graphics.newFont(sizes.tiny),
