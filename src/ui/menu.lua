@@ -1,311 +1,285 @@
--- Menu principale singleton
-local theme = require("src.ui.theme")
-local utils = require("src.ui.utils")
-local constants = require("src.core.constants")
+-- Menu principale moderno in stile Balatro
+local M = {}
 
--- I font vengono ora passati come argomento alle funzioni draw
-local L = {w=1280, h=720, margin=32, gap=16, radius=14, bottomRowY=0, logoRect=nil, langRect=nil}
-local buttons = {}
 local hoverIdx, focusIdx = nil, 1
+local buttons = {}
+local accentPulse = 0
+local optionsDropdown = {
+    open = false,
+    items = {
+        {id = "game", label = "GAME", onClick = function() print("GAME OPTIONS") end},
+        {id = "video", label = "VIDEO", onClick = function() print("VIDEO OPTIONS") end},
+        {id = "graphics", label = "GRAPHICS", onClick = function() print("GRAPHICS OPTIONS") end},
+        {id = "audio", label = "AUDIO", onClick = function() print("AUDIO OPTIONS") end}
+    },
+    selectedIndex = 1,
+    x = 0, y = 0, w = 150, h = 0
+}
 
-local function addButton(id, label, color, rect, onClick, enabled)
-    table.insert(buttons, {
-        id=id, label=label, color=color, x=rect.x, y=rect.y, w=rect.w, h=rect.h,
-        onClick=onClick or function() print("CLICK:", id) end,
-        enabled = (enabled ~= false)
-    })
+-- Colori del tema
+local COLORS = {
+    background = {0.05, 0.07, 0.12, 1},
+    card = {0.08, 0.12, 0.18, 0.9},
+    cardBorder = {0.25, 0.35, 0.55, 0.8},
+    cardHover = {0.12, 0.16, 0.24, 0.95},
+    accent = {0.98, 0.75, 0.32, 1},
+    accentGlow = {0.98, 0.85, 0.45, 1},
+    text = {0.92, 0.94, 0.98, 1},
+    textShadow = {0.02, 0.02, 0.05, 0.8},
+    play = {0.2, 0.5, 0.8, 1},         -- Blu
+    options = {0.8, 0.5, 0.2, 1},      -- Arancione
+    quit = {0.8, 0.2, 0.2, 1},         -- Rosso
+    collectibles = {0.2, 0.7, 0.4, 1}, -- Verde
+    dropdown = {0.1, 0.15, 0.22, 0.95},
+    dropdownBorder = {0.3, 0.4, 0.6, 1},
+    dropdownHover = {0.15, 0.2, 0.28, 1}
+}
+
+local function drawShadowedText(font, text, x, y, color, shadowColor)
+    shadowColor = shadowColor or COLORS.textShadow
+    -- Ombra
+    love.graphics.setColor(shadowColor)
+    love.graphics.setFont(font)
+    love.graphics.print(text, x + 2, y + 2)
+    -- Testo principale
+    love.graphics.setColor(color or COLORS.text)
+    love.graphics.print(text, x, y)
 end
 
-function Menu.computeLayout()
-    L.w, L.h = love.graphics.getDimensions()
-    local w,h = L.w, L.h
-    local margin = math.max(24, math.floor(math.min(w,h)*0.02))
-    local gap = math.max(12, math.floor(math.min(w,h)*0.012))
-    local rowH = math.floor(h*0.11)
-    local playW = math.min(420, math.floor(w*0.30))
-    local smallW = math.min(220, math.floor(w*0.17))
-    local rects = utils.computeRects(w, h, margin, gap, rowH, playW, smallW)
-    local logoH = math.min(h*0.28, 260)
-    L.logoRect = {x = math.floor(w*0.12), y = math.floor(h*0.12), w = math.floor(w*0.76), h = math.floor(logoH)}
-    local langW, langH = math.floor(smallW*0.9), math.floor(rowH*0.55)
-    L.langRect = {x = w - margin - langW, y = h - margin - rowH + rowH + gap*0.5 - langH, w = langW, h = langH}
-    buttons = {}
-    addButton("profile",   "PROFILE",   theme.COLORS.profile,    rects.profile)
-    addButton("play",      "PLAY",      theme.COLORS.play,       rects.play, function() print("PLAY!") end)
-    addButton("options",   "OPTIONS",   theme.COLORS.options,    rects.options)
-    addButton("quit",      "QUIT",      theme.COLORS.quit,       rects.quit, function() love.event.quit() end)
-    addButton("collection","COLLECTION",theme.COLORS.collection, rects.collection)
-    for i,b in ipairs(buttons) do if b.id=="play" then focusIdx=i break end end
+local function drawMenuCard(x, y, w, h, color, isHover, isFocus)
+    -- Ombra della carta
+    love.graphics.setColor(0, 0, 0, 0.3)
+    love.graphics.rectangle("fill", x + 4, y + 6, w, h, 12, 12)
+    
+    -- Sfondo della carta
+    love.graphics.setColor(isHover and COLORS.cardHover or COLORS.card)
+    love.graphics.rectangle("fill", x, y, w, h, 12, 12)
+    
+    -- Bordo colorato
+    love.graphics.setColor(color)
+    love.graphics.setLineWidth(3)
+    love.graphics.rectangle("line", x, y, w, h, 12, 12)
+    
+    -- Glow per focus/hover
+    if isFocus or isHover then
+        local glowAlpha = 0.6 + 0.3 * math.sin(accentPulse * 3)
+        love.graphics.setColor(COLORS.accentGlow[1], COLORS.accentGlow[2], COLORS.accentGlow[3], glowAlpha * 0.5)
+        love.graphics.setLineWidth(6)
+        love.graphics.rectangle("line", x - 3, y - 3, w + 6, h + 6, 15, 15)
+    end
+    love.graphics.setLineWidth(1)
 end
 
-function Menu.draw()
-    theme.setColor(theme.COLORS.bg)
-    love.graphics.rectangle("fill", 0,0, L.w, L.h)
-    theme.setColor(theme.COLORS.panel)
-    local r = L.logoRect
-    if r and r.x and r.y and r.w and r.h then
-        love.graphics.rectangle("fill", r.x, r.y, r.w, r.h, 18,18)
-        if fontTitle then
-            theme.setColor(theme.COLORS.text)
-            love.graphics.setFont(fontTitle)
-            local title = "FARKLE 3D"
-            local tw = fontTitle:getWidth(title)
-            local th = fontTitle:getHeight()
-            love.graphics.print(title, r.x+(r.w-tw)/2, r.y+(r.h-th)/2)
+local function drawDropdown(fonts)
+    if not optionsDropdown.open then return end
+    
+    local itemHeight = 40
+    optionsDropdown.h = #optionsDropdown.items * itemHeight
+    
+    -- Sfondo dropdown
+    love.graphics.setColor(COLORS.dropdown)
+    love.graphics.rectangle("fill", optionsDropdown.x, optionsDropdown.y, optionsDropdown.w, optionsDropdown.h, 8, 8)
+    
+    -- Bordo dropdown
+    love.graphics.setColor(COLORS.dropdownBorder)
+    love.graphics.setLineWidth(2)
+    love.graphics.rectangle("line", optionsDropdown.x, optionsDropdown.y, optionsDropdown.w, optionsDropdown.h, 8, 8)
+    
+    -- Items del dropdown
+    for i, item in ipairs(optionsDropdown.items) do
+        local itemY = optionsDropdown.y + (i - 1) * itemHeight
+        local isHover = (i == optionsDropdown.selectedIndex)
+        
+        -- Sfondo item se hover
+        if isHover then
+            love.graphics.setColor(COLORS.dropdownHover)
+            love.graphics.rectangle("fill", optionsDropdown.x + 2, itemY + 2, optionsDropdown.w - 4, itemHeight - 4, 6, 6)
+        end
+        
+        -- Testo item
+        if fonts and fonts.small then
+            local textColor = isHover and COLORS.accentGlow or COLORS.text
+            love.graphics.setColor(textColor)
+            love.graphics.setFont(fonts.small)
+            local textX = optionsDropdown.x + 10
+            local textY = itemY + (itemHeight - fonts.small:getHeight()) * 0.5
+            love.graphics.print(item.label, textX, textY)
         end
     end
-    for i,b in ipairs(buttons) do Menu.drawButton(b, hoverIdx==i, focusIdx==i) end
-    local lg = L.langRect
-    if lg and lg.x and lg.y and lg.w and lg.h then
-        theme.setColor(theme.COLORS.panel)
-        love.graphics.rectangle("fill", lg.x, lg.y, lg.w, lg.h, 10,10)
-        if fontSmall then
-            theme.setColor(theme.COLORS.text)
-            love.graphics.setFont(fontSmall)
-            local t = "Language: EN"
-            love.graphics.print(t, lg.x + (lg.w - fontSmall:getWidth(t))/2, lg.y + (lg.h - fontSmall:getHeight())/2)
-            theme.setColor({1,1,1,0.5})
-            love.graphics.print("←/→ per cambiare focus • Invio per attivare • Click per selezionare", 16, L.h-28)
+    
+    love.graphics.setLineWidth(1)
+end
+
+function M.init()
+    buttons = {
+        {id = "play", label = "PLAY", color = COLORS.play, onClick = function() print("START GAME") end},
+        {id = "options", label = "OPTIONS", color = COLORS.options, onClick = function() 
+            optionsDropdown.open = not optionsDropdown.open
+        end},
+        {id = "quit", label = "QUIT", color = COLORS.quit, onClick = function() love.event.quit() end},
+        {id = "collectibles", label = "COLLECTIBLES", color = COLORS.collectibles, onClick = function() print("COLLECTION") end}
+    }
+    focusIdx = 1
+end
+
+function M.update(dt)
+    accentPulse = accentPulse + dt
+end
+
+function M.draw(fonts)
+    local width, height = love.graphics.getDimensions()
+    
+    -- Sfondo
+    love.graphics.setColor(COLORS.background)
+    love.graphics.rectangle("fill", 0, 0, width, height)
+    
+    -- Titolo principale
+    local title = "FARKLE"
+    if fonts and fonts.title then
+        local titleWidth = fonts.title:getWidth(title)
+        local titleX = (width - titleWidth) * 0.5
+        local titleY = height * 0.2
+        drawShadowedText(fonts.title, title, titleX, titleY, COLORS.accent)
+    end
+    
+    -- Sottotitolo
+    local subtitle = "Dadi, rischio e fortuna"
+    if fonts and fonts.body then
+        local subtitleWidth = fonts.body:getWidth(subtitle)
+        local subtitleX = (width - subtitleWidth) * 0.5
+        local subtitleY = height * 0.32
+        drawShadowedText(fonts.body, subtitle, subtitleX, subtitleY, COLORS.text)
+    end
+    
+    -- Pulsanti disposti orizzontalmente
+    local buttonWidth = 200
+    local buttonHeight = 80
+    local spacing = 30
+    local totalWidth = #buttons * buttonWidth + (#buttons - 1) * spacing
+    local startX = (width - totalWidth) * 0.5
+    local buttonY = height * 0.55
+    
+    for i, button in ipairs(buttons) do
+        local x = startX + (i - 1) * (buttonWidth + spacing)
+        local isHover = (hoverIdx == i)
+        local isFocus = (focusIdx == i)
+        
+        button.x, button.y, button.w, button.h = x, buttonY, buttonWidth, buttonHeight
+        
+        drawMenuCard(x, buttonY, buttonWidth, buttonHeight, button.color, isHover, isFocus)
+        
+        -- Testo del pulsante
+        if fonts and fonts.body then
+            local textWidth = fonts.body:getWidth(button.label)
+            local textX = x + (buttonWidth - textWidth) * 0.5
+            local textY = buttonY + (buttonHeight - fonts.body:getHeight()) * 0.5
+            drawShadowedText(fonts.body, button.label, textX, textY, COLORS.text)
+        end
+        
+        -- Posiziona dropdown sotto il pulsante OPTIONS
+        if button.id == "options" then
+            optionsDropdown.x = x
+            optionsDropdown.y = buttonY + buttonHeight + 5
         end
     end
-end
-
-function Menu.drawButton(b, isHover, isFocus)
-    theme.setColor(theme.COLORS.shadow)
-    love.graphics.rectangle("fill", b.x+2, b.y+4, b.w, b.h, L.radius, L.radius)
-    theme.setColor(b.enabled and b.color or theme.COLORS.disabled)
-    love.graphics.rectangle("fill", b.x, b.y, b.w, b.h, L.radius, L.radius)
-    if isHover or isFocus then
-        theme.setColor(theme.COLORS.hover)
-        love.graphics.rectangle("fill", b.x, b.y, b.w, b.h, L.radius, L.radius)
-    end
-    theme.setColor(theme.COLORS.text)
-    love.graphics.setFont(fontBtn)
-    local tw = fontBtn:getWidth(b.label)
-    local th = fontBtn:getHeight()
-    love.graphics.print(b.label, b.x + (b.w-tw)/2, b.y + (b.h-th)/2 - 2)
-end
-
-function Menu.handleKey(key)
-    if key == "return" or key == "space" then
-        local b = buttons[focusIdx or 1]
-        if b and b.enabled then b.onClick() end
-    elseif key == "right" then
-        focusIdx = math.min(#buttons, (focusIdx or 1) + 1)
-    elseif key == "left" then
-        focusIdx = math.max(1, (focusIdx or 1) - 1)
+    
+    -- Disegna dropdown se aperto
+    drawDropdown(fonts)
+    
+    -- Hint controlli
+    local hint = "← → per navigare • Invio/Click per selezionare • Esc per uscire"
+    if fonts and fonts.small then
+        local hintWidth = fonts.small:getWidth(hint)
+        local hintX = (width - hintWidth) * 0.5
+        local hintY = height * 0.85
+        drawShadowedText(fonts.small, hint, hintX, hintY, {0.7, 0.7, 0.7, 1})
     end
 end
 
-function Menu.handleMouse(mx, my)
-    for i,b in ipairs(buttons) do
-        if theme.pointInRect(mx, my, b) and b.enabled then hoverIdx = i break end
-    end
-end
-
-function Menu.getButtons() return buttons end
-function Menu.getFocusIdx() return focusIdx end
-function Menu.getHoverIdx() return hoverIdx end
-local Menu = {}
-
-local function drawMenuCard(x, y, w, h, isSelected, accentPulse)
-    love.graphics.setColor(0.06, 0.09, 0.14, 0.86)
-    love.graphics.rectangle("fill", x, y, w, h, 18, 18)
-    love.graphics.setColor(0.3, 0.4, 0.68, 0.55)
-    love.graphics.rectangle("line", x, y, w, h, 18, 18)
-    if isSelected then
-        local glow = 0.6 + 0.3 * math.sin(accentPulse)
-        love.graphics.setColor(0.98, 0.72 + 0.08 * glow, 0.28 + 0.1 * glow, 1)
-        love.graphics.setLineWidth(4)
-        love.graphics.rectangle("line", x - 6, y - 6, w + 12, h + 12, 22, 22)
-        love.graphics.setLineWidth(1)
-    end
-end
-
-local function drawOverlayBackground(alpha)
-    local w, h = love.graphics.getWidth(), love.graphics.getHeight()
-    love.graphics.setColor(0.02, 0.03, 0.05, alpha or 0.82)
-    love.graphics.rectangle("fill", 0, 0, w, h)
-    return w, h
-end
-
-function Menu.new(items)
-    local self = setmetatable({}, Menu)
-    self.items = items or {}
-    self.selectedIndex = (#self.items > 0) and 1 or 0
-    self.pulse = 0
-    self.itemBounds = {}
-    return self
-end
-
-function Menu:setItems(items)
-    self.items = items or {}
-    if #self.items == 0 then
-        self.selectedIndex = 0
-    else
-        self.selectedIndex = math.min(self.selectedIndex > 0 and self.selectedIndex or 1, #self.items)
-    end
-end
-
-function Menu:reset()
-    self.pulse = 0
-    if #self.items > 0 then
-        self.selectedIndex = 1
-    else
-        self.selectedIndex = 0
-    end
-end
-
-function Menu:update(dt)
-    self.pulse = (self.pulse or 0) + dt * 2
-end
-
-function Menu:getItem(index)
-    return self.items[index]
-end
-
-function Menu:getItemCount()
-    return #self.items
-end
-
-function Menu:getSelectedIndex()
-    return self.selectedIndex
-end
-
-function Menu:getSelectedItem()
-    return self.items[self.selectedIndex]
-end
-
-function Menu:moveSelection(delta)
-    local total = #self.items
-    if total == 0 then return end
-    local current = self.selectedIndex
-    if current < 1 then current = 1 end
-    self.selectedIndex = ((current - 1 + delta) % total) + 1
-end
-
-function Menu:setSelection(index)
-    local total = #self.items
-    if total == 0 then
-        self.selectedIndex = 0
-        return
-    end
-    if index < 1 then
-        self.selectedIndex = 1
-    elseif index > total then
-        self.selectedIndex = total
-    else
-        self.selectedIndex = index
-    end
-end
-
-function Menu:hitTest(x, y)
-    for index, bounds in ipairs(self.itemBounds or {}) do
-        if x >= bounds.x and x <= bounds.x + bounds.w and y >= bounds.y and y <= bounds.y + bounds.h then
-            return index
+function M.mousepressed(x, y, button, game)
+    if button ~= 1 then return end
+    
+    -- Controlla click sul dropdown se aperto
+    if optionsDropdown.open then
+        if x >= optionsDropdown.x and x <= optionsDropdown.x + optionsDropdown.w and 
+           y >= optionsDropdown.y and y <= optionsDropdown.y + optionsDropdown.h then
+            local itemHeight = 40
+            local clickedIndex = math.floor((y - optionsDropdown.y) / itemHeight) + 1
+            if clickedIndex >= 1 and clickedIndex <= #optionsDropdown.items then
+                local item = optionsDropdown.items[clickedIndex]
+                if item.onClick then item.onClick() end
+                optionsDropdown.open = false
+                return true
+            end
+        else
+            -- Click fuori dal dropdown, chiudilo
+            optionsDropdown.open = false
         end
     end
-    return nil
-end
-
-function Menu:onMouseMoved(x, y)
-    local index = self:hitTest(x, y)
-    if index then
-        self:setSelection(index)
-        return true
+    
+    -- Controlla click sui pulsanti principali
+    for i, btn in ipairs(buttons) do
+        if x >= btn.x and x <= btn.x + btn.w and y >= btn.y and y <= btn.y + btn.h then
+            focusIdx = i
+            if btn.onClick then btn.onClick() end
+            return true
+        end
     end
     return false
 end
 
-function Menu:draw(fonts, drawShadowedText)
-    local w, h = drawOverlayBackground(0.78)
-
-    local title = "Neon Farkle"
-    local titleWidth = fonts.title:getWidth(title)
-    local titleX = (w - titleWidth) * 0.5
-    local titleY = h * 0.18
-    drawShadowedText(fonts.title, title, titleX, titleY, {0.98, 0.78, 0.32, 1}, {0.02, 0.02, 0.02, 0.8})
-
-    local subtitle = "Roll with style. Bank with nerve."
-    local subtitleX = (w - fonts.help:getWidth(subtitle)) * 0.5
-    drawShadowedText(fonts.help, subtitle, subtitleX, titleY + fonts.title:getHeight() + 12, {0.82, 0.86, 0.96, 1})
-
-    local itemHeight = fonts.menu:getHeight() + 22
-    local spacing = 16
-    local totalHeight = #self.items * itemHeight + (#self.items - 1) * spacing
-    local baseY = h * 0.45 - totalHeight * 0.5
-    local cardWidth = math.max(360, w * 0.32)
-    local cardX = (w - cardWidth) * 0.5
-
-    self.itemBounds = {}
-    for index, item in ipairs(self.items) do
-        local itemY = baseY + (index - 1) * (itemHeight + spacing)
-        local isSelected = index == self.selectedIndex
-        drawMenuCard(cardX, itemY, cardWidth, itemHeight, isSelected, (self.pulse or 0) * 2 + index)
-        self.itemBounds[index] = {x = cardX, y = itemY, w = cardWidth, h = itemHeight}
-
-        local textY = itemY + (itemHeight - fonts.menu:getHeight()) * 0.5 - 2
-        local textColor = isSelected and {0.98, 0.93, 0.85, 1} or {0.78, 0.82, 0.9, 1}
-        drawShadowedText(fonts.menu, item.label, cardX + 28, textY, textColor)
+function M.keypressed(key, game)
+    if optionsDropdown.open then
+        -- Navigazione nel dropdown
+        if key == "up" then
+            optionsDropdown.selectedIndex = math.max(1, optionsDropdown.selectedIndex - 1)
+        elseif key == "down" then
+            optionsDropdown.selectedIndex = math.min(#optionsDropdown.items, optionsDropdown.selectedIndex + 1)
+        elseif key == "return" or key == "space" then
+            local item = optionsDropdown.items[optionsDropdown.selectedIndex]
+            if item and item.onClick then item.onClick() end
+            optionsDropdown.open = false
+        elseif key == "escape" then
+            optionsDropdown.open = false
+        end
+        return
     end
-
-    local selectedItem = self:getSelectedItem()
-    if selectedItem then
-        local blurb = selectedItem.blurb
-        local blurbWidth = fonts.body:getWidth(blurb)
-        local blurbX = (w - blurbWidth) * 0.5
-        drawShadowedText(fonts.body, blurb, blurbX, baseY + totalHeight + 42, {0.86, 0.88, 0.95, 1})
-    end
-
-    local hint = "Enter / Click to confirm    Esc to quit"
-    drawShadowedText(fonts.help, hint, (w - fonts.help:getWidth(hint)) * 0.5, h - 86, {0.96, 0.78, 0.36, 1})
-end
-
-local function drawOverlayText(fonts, drawShadowedText, lines, baseY, lineSpacing)
-    for i, line in ipairs(lines) do
-        local textWidth = fonts.body:getWidth(line)
-        local x = (love.graphics.getWidth() - textWidth) * 0.5
-        local y = baseY + (i - 1) * lineSpacing
-        drawShadowedText(fonts.body, line, x, y, {0.86, 0.88, 0.95, 1})
+    
+    -- Navigazione menu principale
+    if key == "return" or key == "space" then
+        local btn = buttons[focusIdx]
+        if btn and btn.onClick then btn.onClick() end
+    elseif key == "right" then
+        focusIdx = math.min(#buttons, focusIdx + 1)
+    elseif key == "left" then
+        focusIdx = math.max(1, focusIdx - 1)
+    elseif key == "escape" then
+        love.event.quit()
     end
 end
 
-function Menu:drawOptions(fonts, drawShadowedText)
-    local w, h = drawOverlayBackground()
-
-    local title = "Options"
-    drawShadowedText(fonts.title, title, (w - fonts.title:getWidth(title)) * 0.5, h * 0.18, {0.98, 0.76, 0.3, 1})
-
-    local lines = {
-        "Audio sliders, visual filters, and accessibility toggles",
-        "will live here soon. For now, enjoy the neon bones!",
-    }
-    local baseY = h * 0.4
-    local lineSpacing = fonts.body:getHeight() + 12
-    drawOverlayText(fonts, drawShadowedText, lines, baseY, lineSpacing)
-
-    local hint = "Press ESC or Right Click to return"
-    drawShadowedText(fonts.help, hint, (w - fonts.help:getWidth(hint)) * 0.5, h - 86, {0.96, 0.78, 0.36, 1})
+function M.mousemoved(x, y)
+    -- Aggiorna hover per dropdown se aperto
+    if optionsDropdown.open then
+        if x >= optionsDropdown.x and x <= optionsDropdown.x + optionsDropdown.w and 
+           y >= optionsDropdown.y and y <= optionsDropdown.y + optionsDropdown.h then
+            local itemHeight = 40
+            local hoverIndex = math.floor((y - optionsDropdown.y) / itemHeight) + 1
+            if hoverIndex >= 1 and hoverIndex <= #optionsDropdown.items then
+                optionsDropdown.selectedIndex = hoverIndex
+            end
+        end
+        return
+    end
+    
+    -- Aggiorna hover per pulsanti principali
+    hoverIdx = nil
+    for i, btn in ipairs(buttons) do
+        if x >= btn.x and x <= btn.x + btn.w and y >= btn.y and y <= btn.y + btn.h then
+            hoverIdx = i
+            break
+        end
+    end
 end
 
-function Menu:drawGuide(fonts, drawShadowedText)
-    local w, h = drawOverlayBackground()
-
-    local title = "How to Play"
-    drawShadowedText(fonts.title, title, (w - fonts.title:getWidth(title)) * 0.5, h * 0.18, {0.98, 0.76, 0.3, 1})
-
-    local lines = {
-        "Roll six dice. Lock scoring dice to build your combo streak.",
-        "Bank points with Q to keep them safe, but busting erases turn points.",
-        "Hot dice! Score all dice in a roll and you'll throw all six again.",
-        "Chase high scores like a Balatro run—risky plays pay the neon bills.",
-    }
-    local baseY = h * 0.38
-    local lineSpacing = fonts.body:getHeight() + 10
-    drawOverlayText(fonts, drawShadowedText, lines, baseY, lineSpacing)
-
-    local hint = "Press ESC or Right Click to return"
-    drawShadowedText(fonts.help, hint, (w - fonts.help:getWidth(hint)) * 0.5, h - 86, {0.96, 0.78, 0.36, 1})
-end
-
-return Menu
+return M

@@ -38,6 +38,11 @@ function M.init()
     M.refreshFonts(width, height)
     M.computeLayout()
     GameState.init(game, Audio)
+    
+    -- Inizializza il menu
+    local Menu = require("src.ui.menu")
+    Menu.init()
+    
     -- Caricamento board
     local boardCandidates = {
         "assets/UI/board.png",
@@ -63,7 +68,8 @@ end
 
 function M.update(dt)
     if game.state == "menu" then
-        -- eventuale animazione menu
+        local Menu = require("src.ui.menu")
+        Menu.update(dt)
         Audio.update()
         return
     end
@@ -202,6 +208,13 @@ end
 
 function M.loadMenuBackground()
     game.menuBackgroundImage = Assets.loadMenuBackground()
+end
+
+function M.mousemoved(x, y)
+    if game.state == "menu" then
+        local Menu = require("src.ui.menu")
+        Menu.mousemoved(x, y)
+    end
 end
 
 return M

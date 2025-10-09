@@ -1,5 +1,5 @@
 local scoring = require("src.core.scoring")
-local table_unpack = table.unpack or unpack
+local table_unpack = table.unpack
 
 local AIController = {}
 AIController.__index = AIController

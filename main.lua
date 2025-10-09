@@ -20,3 +20,7 @@ end
 function love.keypressed(key)
     Game.keypressed(key)
 end
+
+function love.mousemoved(x, y)
+    Game.mousemoved(x, y)
+end

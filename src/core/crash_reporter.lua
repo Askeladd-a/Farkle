@@ -75,29 +75,22 @@ local function formatStackTrace(err)
 end
 
 -- Formatta le informazioni del gioco
-local function formatGameInfo()
-    local lines = {}
-    
-    table.insert(lines, "=== INFORMAZIONI GIOCO ===")
-    
-    -- Informazioni stato gioco (se disponibili)
-    if game then
-        table.insert(lines, "Stato gioco: " .. (game.state or "sconosciuto"))
-        table.insert(lines, "Giocatore attivo: " .. (game.active or "sconosciuto"))
-        table.insert(lines, "Dadi rimanenti: " .. (game.diceLeft or "sconosciuto"))
-        table.insert(lines, "Punteggio round: " .. (game.roundScore or "sconosciuto"))
-        
-        if game.players then
-            for i, player in ipairs(game.players) do
-                table.insert(lines, "Giocatore " .. i .. ": " .. (player.name or "sconosciuto") .. " - Punti: " .. (player.banked or 0))
+function CrashReporter.dumpGameState(gameData)
+    local lines = {"--- Game State ---"}
+    if gameData then
+        table.insert(lines, "Stato gioco: " .. (gameData.state or "sconosciuto"))
+        table.insert(lines, "Giocatore attivo: " .. (gameData.active or "sconosciuto"))
+        table.insert(lines, "Dadi rimanenti: " .. (gameData.diceLeft or "sconosciuto"))
+        table.insert(lines, "Punteggio round: " .. (gameData.roundScore or "sconosciuto"))
+        table.insert(lines, "")
+        if gameData.players then
+            for i, player in ipairs(gameData.players) do
+                table.insert(lines, string.format("Player %d: %s (banked: %d)", i, player.name or "Unnamed", player.banked or 0))
             end
         end
     else
-        table.insert(lines, "Stato gioco: Non inizializzato")
+        table.insert(lines, "Nessun dato di gioco disponibile")
     end
-    
-    table.insert(lines, "")
-    
     return table.concat(lines, "\n")
 end
 
@@ -143,7 +136,7 @@ local function saveCrashReport(err)
     file:write("\n")
     
     file:write(formatSystemInfo())
-    file:write(formatGameInfo())
+    file:write(CrashReporter.dumpGameState())
     file:write(formatStackTrace(err))
     
     file:write("=== FINE REPORT ===\n")
