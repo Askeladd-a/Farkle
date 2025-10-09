@@ -1028,7 +1028,17 @@ function love.load()
         end
         loadMenuBackground()
         -- Layout (supports optional precise inner-frame override)
-        game.layout = Layout.setupLayout(width, height, fonts, BUTTON_LABELS, boardImage, game.calib and game.calib.override)
+        -- Use precise measurements provided (normalized by 1024)
+        game.calib.override = {
+            left = 209/1024,
+            right = 863/1024,
+            topTop = 168/1024,
+            topBottom = 436/1024,
+            bottomTop = 587/1024,
+            bottomBottom = 900/1024,
+            hingeRatio = 0.50195,
+        }
+        game.layout = Layout.setupLayout(width, height, fonts, BUTTON_LABELS, boardImage, game.calib.override)
         setupStripes(height)
         decodeCursor()
         loadSelectionImages()
@@ -1213,6 +1223,7 @@ function love.resize(width, height)
     local ok, err = pcall(function()
         local previousLayout = snapshotLayout()
         refreshFonts(width, height)
+        -- Reuse precise override on resize
         game.layout = Layout.setupLayout(width, height, fonts, BUTTON_LABELS, boardImage, game.calib and game.calib.override)
         setupStripes(height)
         realignDiceAfterLayout(previousLayout)
