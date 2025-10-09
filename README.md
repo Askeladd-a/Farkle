@@ -1,6 +1,6 @@
-# Farkle Prototype
+# Dice & Debts
 
-This repository contains a single-player Farkle prototype built with [LÖVE](https://love2d.org/). You duel Neon Bot, an AI opponent that evaluates every roll and decides whether to keep dice, roll again, or bank points. The presentation focuses on a clean board layout inspired by Balatro: the AI rolls in the upper tray, you roll in the lower tray, kept dice slide into side columns, and the score panel sits on the board hinge.
+Single‑player dice game built with [LÖVE](https://love2d.org/). You duel an AI across a wooden board: roll, lock scoring dice, risk another throw, or bank before you bust. Presentation takes cues from card‑roguelikes: clear trays, hinge HUD, and responsive SFX.
 
 ## How to run
 1. Install LÖVE 11.5 (or a compatible 11.x build) from the official website.
@@ -11,28 +11,36 @@ This repository contains a single-player Farkle prototype built with [LÖVE](htt
 3. Clone or download this repository.
 4. Launch the prototype with `love .` executed from the project folder, or drag the folder/zip onto the LÖVE executable.
 
-## Mouse-only controls
-- **Roll Dice** – If no dice are on the tray, this throws the remaining dice for the current turn. When dice are on the tray, it keeps the selected set and rerolls the rest.
-- **Bank Points** – Saves the accumulated round score (including any currently selected set) and passes the turn.
-- **Guide** – Opens an overlay summarising the rules and controls.
-- **Main Menu** – Returns to the start screen without closing the window.
-- **Select dice** – Left-click dice in your tray to toggle their selection. Selected dice emit a subtle glow and will be locked when you roll or bank.
-
-Everything is reachable with the mouse; keyboard shortcuts are intentionally omitted to keep the UI simple.
+## Controls
+- Roll Dice: throws remaining dice (or keeps selection and rerolls others)
+- Bank Points: banks round points and passes the turn
+- Guide: toggle rules overlay
+- Options: opens an anchored dropdown (Main Menu, Exit Game, Toggle Guide, Restart)
+- Select dice: left‑click a die in your tray to lock/unlock it
 
 ## Game flow at a glance
-- You and Neon Bot alternate turns. The active tray is always highlighted by the message panel.
-- Kept dice appear in slim columns beside each tray so you can track how many dice remain before a hot-dice reroll.
-- The hinge HUD tracks your banked score, the 10,000-point goal, Neon Bot’s score, the round total, and the points currently selected on the tray.
-- If a roll contains no scoring combinations the turn busts immediately and the round score is lost.
+- Player vs AI turn‑based. Active guidance appears in the message panel.
+- Dice physics are arcade‑style: energetic launch upward, elastic wall bounces, multi‑pass collision resolution.
+- Kept dice are displayed along the board hinge axis (top for AI, bottom for player).
+- If a roll has no scoring dice, the turn busts and round points are lost.
 
 ## Code structure
-- `main.lua` – Handles layout, state management, AI turns, particle highlights, rendering, and all mouse-driven UI logic.
-- `conf.lua` – Configures the LÖVE window.
-- `lib/dice.lua` – Provides dice creation, physics-style rolling, scatter arrangement, and drawing helpers for both trays and kept columns.
-- `lib/ai.lua` – Implements the Neon Bot heuristics (selection, roll/bank decisions) and exposes a simple context interface consumed by `main.lua`.
-- `lib/scoring.lua` – Scores dice selections and exposes helpers to test for busts and compute round points.
-- `lib/embedded_assets.lua` – Stores the gauntlet cursor and the three glow sprites as Base64 strings so no binary assets are tracked in git. They are decoded at runtime when the game loads.
-- `asset/board.png`, `asset/die1.png` … `asset/die6.png`, `asset/dice_atlas.lua` – Original art supplied by the user. The current build renders dice procedurally and keeps the board texture for the wooden backdrop.
+- `main.lua`: LOVE callbacks, state, rendering glue
+- `src/layout.lua`: board/trays/buttons layout
+- `src/render.lua`: scoreboard and log rendering
+- `src/audio.lua`: SFX loading and playback (dice impacts, page flip, quit handle)
+- `src/assets.lua`: font chains and menu background loader
+- `src/ui/options.lua`: anchored options dropdown (geometry, hover, draw, click)
+- `lib/dice.lua`: dice physics, drawing, kept rendering on hinge
+- `lib/dice_animations.lua`: spritesheet/atlas loader via Anim8, multi‑speed rolling
+- `lib/ai.lua`: opponent logic
+- `lib/scoring.lua`: scoring helpers
+- `conf.lua`: window configuration
 
-Feel free to tweak the layout constants in `main.lua` or the dice size in `lib/dice.lua` if you want a denser or wider board. Enjoy experimenting!
+## Art, fonts, SFX
+- Spritesheets: `images/dice_spritesheet.png` (+ optional `images/dice_spritesheet.xml`) and optional border overlay `images/border_dice_spritesheet.png` (+ `images/dice_border.xml`). Frame size defaults to 64x64.
+- Fonts: place `.ttf/.otf` in `fonts/` (preferred) or `images/`; loader tries multiple fallbacks (Gregorian, Rothenbg, Teutonic, Cinzel, system).
+- Background: `images/brown_age_by_darkwood67.*` (cover on main menu).
+- Sounds: place dice variants in `sounds/dice/dice-1..29.(ogg|wav|mp3)`, UI page in `sounds/book_page.*`, quit handle in `sounds/book_handle.*`.
+
+Tweak physics and layout constants in `lib/dice.lua` and `src/layout.lua` to fit your style. Enjoy rolling!
