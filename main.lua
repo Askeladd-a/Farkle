@@ -180,6 +180,10 @@ local function loadGameFont(size)
     local fontPath = findCustomFontPath()
     local font = safeLoadFont(fontPath, size)
     if font then
+        if font.setFallbacks then
+            local defaultFont = love.graphics.newFont(size)
+            font:setFallbacks(defaultFont)
+        end
         return font
     end
 
