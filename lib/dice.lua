@@ -1,4 +1,5 @@
 local Dice = {}
+local Audio = require("src.audio")
 local DiceAnimations = require("lib.dice_animations")
 
 local random = love.math.random
@@ -64,12 +65,14 @@ local function clampDie(die, tray)
         die.vx = -die.vx * b
         die.vy = die.vy * (0.94 + 0.12 * random()) + randomVelocity(80)
         die.av = die.av + randomVelocity(3)
+        Audio.playDiceImpact(math.sqrt(die.vx*die.vx + die.vy*die.vy))
     elseif die.x > right then
         die.x = right
         local b = BOUNCE * (1 - BOUNCE_JITTER + (random() * 2 - 1) * BOUNCE_JITTER)
         die.vx = -die.vx * b
         die.vy = die.vy * (0.94 + 0.12 * random()) + randomVelocity(80)
         die.av = die.av + randomVelocity(3)
+        Audio.playDiceImpact(math.sqrt(die.vx*die.vx + die.vy*die.vy))
     end
 
     if die.y < top then
@@ -78,12 +81,14 @@ local function clampDie(die, tray)
         die.vy = -die.vy * b
         die.vx = die.vx * (0.94 + 0.12 * random()) + randomVelocity(80)
         die.av = die.av + randomVelocity(3)
+        Audio.playDiceImpact(math.sqrt(die.vx*die.vx + die.vy*die.vy))
     elseif die.y > bottom then
         die.y = bottom
         local b = BOUNCE * (1 - BOUNCE_JITTER + (random() * 2 - 1) * BOUNCE_JITTER)
         die.vy = -die.vy * b
         die.vx = die.vx * (0.94 + 0.12 * random()) + randomVelocity(80)
         die.av = die.av + randomVelocity(3)
+        Audio.playDiceImpact(math.sqrt(die.vx*die.vx + die.vy*die.vy))
     end
 end
 
@@ -119,6 +124,8 @@ local function handleDicePairCollision(a, b)
         -- Piccolo torque casuale
         a.av = a.av + (random() - 0.5) * 2.2
         b.av = b.av + (random() - 0.5) * 2.2
+        local relSpeed = math.sqrt(rvx*rvx + rvy*rvy)
+        Audio.playDiceImpact(relSpeed)
     end
 end
 
