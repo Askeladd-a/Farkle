@@ -1221,14 +1221,9 @@ function love.mousepressed(x, y, button)
                         return
                     end
                 end
-                -- click fuori: non chiudere se stiamo cliccando sui bottoni griglia (pass-through)
-                local grid = getButtonsBounds()
-                if grid and x >= grid.x and x <= grid.x + grid.w and y >= grid.y and y <= grid.y + grid.h then
-                    -- lascia aperto
-                else
-                    ui.open = false
-                    ui.anchor = nil
-                end
+                -- click fuori: chiudi sempre il dropdown, poi lascia proseguire
+                ui.open = false
+                ui.anchor = nil
             end
         end
 
