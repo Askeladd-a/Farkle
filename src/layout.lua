@@ -40,8 +40,11 @@ function M.setupLayout(windowW, windowH, fonts, BUTTON_LABELS, boardImage)
         boardH = boardImage:getHeight()
     end
     
-    -- Scale board to fit window, ensuring minimum size
-    local scale = math.min(windowW * 0.55 / boardW, windowH * 0.85 / boardH)
+    -- Scale board to fit window, prioritizing width ≈ 70–80% for stronger focus
+    -- Use generous height cap to keep it tall when possible
+    local targetBoardWidth = windowW * 0.76
+    local targetBoardHeight = windowH * 0.9
+    local scale = math.min(targetBoardWidth / boardW, targetBoardHeight / boardH)
     local board = {
         x = (windowW - boardW * scale) / 2,
         y = (windowH - boardH * scale) / 2,
@@ -103,15 +106,33 @@ function M.setupLayout(windowW, windowH, fonts, BUTTON_LABELS, boardImage)
         h = trayH_player,
     }
     -- 2) Tasti: 2x2 grid a destra della board
-        local buttonW = math.min(200 * scale, windowW * 0.13)
-        local buttonH = math.min(70 * scale, windowH * 0.09)
-        local buttonGapX = buttonW * 0.25
-        local buttonGapY = buttonH * 0.25
+        -- Calcola dimensioni pulsanti in base alle etichette per evitare wrapping
+        local bodyFont = (fonts and fonts.body) or love.graphics.newFont(20)
+        local labelPaddingX = math.floor(math.max(24, windowW * 0.012))
+        local labelPaddingY = math.floor(math.max(12, windowH * 0.008))
+        local maxLabelW = 0
+        for i = 1, 4 do
+            local w = bodyFont:getWidth(BUTTON_LABELS[i] or "")
+            if w > maxLabelW then maxLabelW = w end
+        end
+        local buttonW = math.ceil(math.min(math.max(maxLabelW + labelPaddingX * 2, 220 * scale), windowW * 0.2))
+        local buttonH = math.ceil(math.min(math.max(bodyFont:getHeight() + labelPaddingY * 2, 56 * scale), windowH * 0.1))
+        -- Gaps coerenti e allineamento su griglia
+        local buttonGapX = math.floor(buttonW * 0.22)
+        local buttonGapY = math.floor(buttonH * 0.22)
         local buttons = {}
-        local paddingRight = windowW * 0.04
-        local paddingBottom = windowH * 0.06
-        local btnStartX = windowW - (buttonW * 2 + buttonGapX) - paddingRight
-        local btnStartY = windowH - (buttonH * 2 + buttonGapY) - paddingBottom
+        local paddingRight = math.floor(windowW * 0.04)
+        local paddingBottom = math.floor(windowH * 0.06)
+        -- Allinea il blocco dei pulsanti al bordo destro con margine costante
+        local gridW = buttonW * 2 + buttonGapX
+        local gridH = buttonH * 2 + buttonGapY
+        local btnStartX = windowW - gridW - paddingRight
+        -- Centra verticalmente il blocco attorno al centro visivo della board
+        local boardCenterY = board.y + board.h * 0.5
+        local btnStartY = math.floor(boardCenterY - gridH * 0.5)
+        -- Garantisci che resti su schermo con padding inferiore
+        btnStartY = math.min(btnStartY, windowH - gridH - paddingBottom)
+        btnStartY = math.max(btnStartY, math.floor(windowH * 0.08))
         for i = 1, 4 do
             local col = ((i-1) % 2)
             local row = math.floor((i-1) / 2)
@@ -137,7 +158,7 @@ function M.setupLayout(windowW, windowH, fonts, BUTTON_LABELS, boardImage)
     local logX = board.x - logW * 0.08 - 480    -- Sposta 12 cm (240px) a sinistra
     local logY = board.y + board.h * 0.82
     -- Small options button (top-right corner)
-    local optionsBtnSize = math.max(32, math.floor(windowW * 0.04))
+    local optionsBtnSize = math.max(36, math.floor(windowW * 0.045))
     local optionsButton = {
         x = windowW - optionsBtnSize - paddingRight,
         y = math.max(12, windowH * 0.04),
