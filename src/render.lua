@@ -147,24 +147,38 @@ function M.drawScoreboard(layout, fonts, game)
 end
 
 function M.drawLog(layout, fonts, game)
-    -- Reposition the message to appear just above the bottom of the board area
-    local msgWidth = layout.board.w * 0.7
-    local msgHeight = layout.board.h * 0.1
+    -- Compact banner centered with left dice icon and brass frame
+    local msgWidth = layout.board.w * 0.56
+    local msgHeight = math.max(layout.board.h * 0.085, fonts.body:getHeight() + 24)
     local msgX = layout.board.x + (layout.board.w - msgWidth) / 2
     local msgY = layout.board.y + layout.board.h * 0.88
-    
-    -- Semi-transparent dark background
-    love.graphics.setColor(0.1, 0.08, 0.06, 0.88)
-    love.graphics.rectangle("fill", msgX, msgY, msgWidth, msgHeight, 14, 14)
-    love.graphics.setColor(0.35, 0.27, 0.18)
+
+    -- Background and brass frame
+    love.graphics.setColor(0.08, 0.07, 0.06, 0.95)
+    love.graphics.rectangle("fill", msgX, msgY, msgWidth, msgHeight, 12, 12)
+    love.graphics.setColor(0.60, 0.48, 0.25)
     love.graphics.setLineWidth(2)
-    love.graphics.rectangle("line", msgX + 4, msgY + 4, msgWidth - 8, msgHeight - 8, 12, 12)
-    
-    -- Draw the game message
+    love.graphics.rectangle("line", msgX, msgY, msgWidth, msgHeight, 12, 12)
+    love.graphics.setColor(0.74, 0.60, 0.30)
+    love.graphics.rectangle("line", msgX+2, msgY+2, msgWidth-4, msgHeight-4, 10, 10)
+
+    -- Dice icon (simple)
+    local iconSize = math.min(22, msgHeight - 14)
+    local ix = msgX + 12
+    local iy = msgY + (msgHeight - iconSize) / 2
+    love.graphics.setColor(0.96, 0.93, 0.82)
+    love.graphics.rectangle("fill", ix, iy, iconSize, iconSize, 6, 6)
+    love.graphics.setColor(0.25, 0.22, 0.18)
+    love.graphics.setLineWidth(1)
+    love.graphics.rectangle("line", ix, iy, iconSize, iconSize, 6, 6)
+    love.graphics.circle("fill", ix + iconSize*0.35, iy + iconSize*0.35, 2.5)
+    love.graphics.circle("fill", ix + iconSize*0.65, iy + iconSize*0.65, 2.5)
+
+    -- Message text
     love.graphics.setFont(fonts.body)
-    love.graphics.setColor(0.95, 0.92, 0.85)
-    local padding = 18
-    love.graphics.printf(game.message or "Click Roll Dice to begin.", msgX + padding, msgY + padding, msgWidth - padding * 2, "center")
+    love.graphics.setColor(0.96, 0.92, 0.85)
+    local paddingLeft = 12 + iconSize + 10
+    love.graphics.printf(game.message or "Click Roll Dice to begin.", msgX + paddingLeft, msgY + (msgHeight - fonts.body:getHeight())/2, msgWidth - paddingLeft - 12, "left")
 end
 
 return M

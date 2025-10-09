@@ -5,6 +5,7 @@ local EmbeddedAssets = require("lib.embedded_assets")
 local CrashReporter = require("lib.crash_reporter")
 local Layout = require("src.layout")
 local Render = require("src.render")
+local Theme = require("src.theme")
 
 local table_insert = table.insert
 local table_remove = table.remove
@@ -1053,16 +1054,31 @@ function love.draw()
         if layout.buttons then
             for _, btn in ipairs(layout.buttons) do
                 btn.enabled = buttonEnabled(btn.label)
-                local fill = btn.enabled and {0.22, 0.18, 0.12, 0.96} or {0.22, 0.18, 0.12, 0.42}
-                love.graphics.setColor(fill)
-                love.graphics.rectangle("fill", btn.x, btn.y, btn.w, btn.h, 12, 12)
-                -- warm edge
-                love.graphics.setColor(0.45, 0.35, 0.2)
+                -- Plaque style
+                local isCTA = (btn.label == "Roll Dice" or btn.label == "Bank Points")
+                local mx, my = love.mouse.getPosition()
+                local hovered = mx >= btn.x and mx <= btn.x + btn.w and my >= btn.y and my <= btn.y + btn.h
+                local pressOffset = (hovered and love.mouse.isDown(1) and btn.enabled) and 2 or 0
+                local alpha = btn.enabled and (hovered and 1.0 or 0.96) or 0.42
+                Theme.setColor({0.14, 0.11, 0.08, alpha})
+                love.graphics.rectangle("fill", btn.x, btn.y + pressOffset, btn.w, btn.h, 12, 12)
+                -- brass edge
+                Theme.setColor(Theme.colors.brass)
                 love.graphics.setLineWidth(2)
-                love.graphics.rectangle("line", btn.x, btn.y, btn.w, btn.h, 12, 12)
-                love.graphics.setColor(0.96, 0.92, 0.85)
+                love.graphics.rectangle("line", btn.x, btn.y + pressOffset, btn.w, btn.h, 12, 12)
+                -- inner stroke
+                Theme.setColor(Theme.colors.brassEdge)
+                love.graphics.rectangle("line", btn.x+2, btn.y+2 + pressOffset, btn.w-4, btn.h-4, 10, 10)
+                -- hover glow
+                if hovered and btn.enabled then
+                    love.graphics.setColor(0.98, 0.86, 0.38, 0.18)
+                    love.graphics.setLineWidth(8)
+                    love.graphics.rectangle("line", btn.x-2, btn.y-2 + pressOffset, btn.w+4, btn.h+4, 14, 14)
+                end
+                -- label
+                if isCTA and btn.enabled then Theme.setColor(Theme.colors.gold) else Theme.setColor(Theme.colors.text) end
                 love.graphics.setFont(fonts.body)
-                love.graphics.printf(btn.label, btn.x, btn.y + btn.h / 2 - fonts.body:getHeight() / 2, btn.w, "center")
+                love.graphics.printf(btn.label, btn.x, btn.y + pressOffset + btn.h / 2 - fonts.body:getHeight() / 2, btn.w, "center")
             end
         end
         drawGuide()
