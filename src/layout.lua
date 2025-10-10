@@ -121,63 +121,77 @@ function M.setupLayout(windowW, windowH, fonts, BUTTON_LABELS, boardImage, overr
         w = round(keptW_player),
         h = round(trayH_player),
     }
-    -- 2) Tasti: 2x2 grid a destra della board
-        -- Calcola dimensioni pulsanti in base alle etichette per evitare wrapping
-        local bodyFont = (fonts and fonts.body) or love.graphics.newFont(20)
-        local labelPaddingX = math.floor(math.max(24, windowW * 0.012))
-        local labelPaddingY = math.floor(math.max(12, windowH * 0.008))
-        local maxLabelW = 0
-        for i = 1, 4 do
-            local w = bodyFont:getWidth(BUTTON_LABELS[i] or "")
-            if w > maxLabelW then maxLabelW = w end
-        end
-        local buttonW = math.ceil(math.min(math.max(maxLabelW + labelPaddingX * 2, 220 * scale), windowW * 0.2))
-        local buttonH = math.ceil(math.min(math.max(bodyFont:getHeight() + labelPaddingY * 2, 56 * scale), windowH * 0.1))
-        -- Gaps coerenti e allineamento su griglia
-        local buttonGapX = math.floor(buttonW * 0.22)
-        local buttonGapY = math.floor(buttonH * 0.22)
-        local buttons = {}
-        local paddingRight = math.floor(windowW * 0.04)
-        local paddingBottom = math.floor(windowH * 0.06)
-        -- Allinea il blocco dei pulsanti al bordo destro con margine costante
-        local gridW = buttonW * 2 + buttonGapX
-        local gridH = buttonH * 2 + buttonGapY
-        local btnStartX = round(windowW - gridW - paddingRight)
-        -- Centra verticalmente il blocco attorno al centro visivo della board
-        local boardCenterY = board.y + board.h * 0.5
-        local btnStartY = round(boardCenterY - gridH * 0.5)
-        -- Garantisci che resti su schermo con padding inferiore
-        btnStartY = math.min(btnStartY, windowH - gridH - paddingBottom)
-        btnStartY = math.max(btnStartY, math.floor(windowH * 0.08))
-        for i = 1, 4 do
-            local col = ((i-1) % 2)
-            local row = math.floor((i-1) / 2)
-            buttons[i] = {
-                x = round(btnStartX + col * (buttonW + buttonGapX)),
-                y = round(btnStartY + row * (buttonH + buttonGapY)),
-                w = buttonW,
-                h = buttonH,
-                label = BUTTON_LABELS[i]
-            }
-        end
-        -- Scoreboard overlays (verde): centrato orizzontalmente, padding verticale, overlay nei rettangoli verdi
-        local scoreboard = {
-            x = board.x + board.w * 0.5,
-            y_ai = board.y + board.h * 0.04,
-            y_player = board.y + board.h * 0.62,
-            w = board.w * 0.7,
-            h = board.h * 0.13
+    -- HUD principale in stile Gwent
+    local hudMarginX = math.floor(windowW * 0.06)
+    local hudWidth = windowW - hudMarginX * 2
+    local hudHeight = math.max(120, math.floor(windowH * 0.16))
+    local hudGap = math.floor(windowH * 0.025)
+    local hudTopY = math.max(24, board.y - hudHeight - hudGap)
+    local hudBottomY = board.y + board.h + hudGap
+    if hudBottomY + hudHeight + hudGap > windowH then
+        hudBottomY = windowH - hudHeight - hudGap
+        hudTopY = math.max(24, hudBottomY - hudHeight - hudGap)
+    end
+    local hud = {
+        top = {
+            x = hudMarginX,
+            y = hudTopY,
+            w = hudWidth,
+            h = hudHeight
+        },
+        bottom = {
+            x = hudMarginX,
+            y = hudBottomY,
+            w = hudWidth,
+            h = hudHeight
         }
-        -- Log (bianco): in basso a sinistra, fuori dalla board
-    local logW = round(board.w * 0.42)
-    local logH = round(board.h * 0.12)
-    local logX = round(board.x - logW * 0.08 - 480)    -- Sposta 12 cm (240px) a sinistra
-    local logY = round(board.y + board.h * 0.82)
-    -- Small options button (top-right corner)
-    local optionsBtnSize = math.max(36, math.floor(windowW * 0.045))
+    }
+
+    -- Pulsanti azione: disposti su barra dentro l'HUD inferiore
+    local buttons = {}
+    local buttonLabels = BUTTON_LABELS or {}
+    local bodyFont = (fonts and fonts.body) or love.graphics.getFont()
+    local paddingX = math.floor(math.max(28, hudWidth * 0.015))
+    local paddingY = math.floor(math.max(16, hudHeight * 0.12))
+    local buttonHeight = math.max(58, math.floor(hudHeight * 0.38))
+    local gap = math.floor(math.max(18, hudWidth * 0.012))
+    local totalWidth = -gap
+    local buttonWidths = {}
+    for i = 1, #buttonLabels do
+        local label = buttonLabels[i] or ""
+        local w = bodyFont:getWidth(label)
+        local buttonW = math.min(math.max(w + paddingX * 2, 160), hud.bottom.w * 0.32)
+        buttonWidths[i] = buttonW
+        totalWidth = totalWidth + buttonW + gap
+    end
+    totalWidth = math.max(totalWidth, 0)
+    local startX = hud.bottom.x + (hud.bottom.w - totalWidth) * 0.5
+    local baseY = hud.bottom.y + hud.bottom.h - buttonHeight - paddingY
+    for i = 1, #buttonLabels do
+        buttons[i] = {
+            x = round(startX),
+            y = round(baseY),
+            w = buttonWidths[i],
+            h = buttonHeight,
+            label = buttonLabels[i]
+        }
+        startX = startX + buttonWidths[i] + gap
+    end
+
+    -- Log (bianco): centrato sotto la board
+    local logW = round(board.w * 0.62)
+    local logH = round(math.max(72, board.h * 0.1))
+    local logX = round(board.x + (board.w - logW) * 0.5)
+    local logY = round(board.y + board.h + hudGap * 0.5)
+    if logY + logH > hud.bottom.y - hudGap * 0.5 then
+        logY = hud.bottom.y - logH - hudGap * 0.5
+    end
+
+    -- Pulsante opzioni rapido (in alto a destra)
+    local optionsBtnSize = math.max(40, math.floor(windowW * 0.045))
     local optionsButton = {
-        x = round(windowW - optionsBtnSize - paddingRight),
-        y = round(math.max(12, windowH * 0.04)),
+        x = round(windowW - optionsBtnSize - math.floor(windowW * 0.035)),
+        y = round(math.max(16, windowH * 0.045)),
         w = optionsBtnSize,
         h = optionsBtnSize
     }
@@ -213,8 +227,8 @@ function M.setupLayout(windowW, windowH, fonts, BUTTON_LABELS, boardImage, overr
             ai = keptIso_ai,
             player = keptIso_player,
         },
-        buttons = buttons,
-        scoreboard = scoreboard,
+    buttons = buttons,
+    hud = hud,
         log = {x = logX, y = logY, w = logW, h = logH},
         optionsButton = optionsButton,
         scale = scale,

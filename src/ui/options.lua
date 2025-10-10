@@ -121,11 +121,40 @@ function Options.handleMousePressed(game, x, y, requestQuit)
       local item = ui.items[i]
       ui.open = false
       ui.anchor = nil
-      if item.label == "Exit Game" or item.label == "Quit" then
+      
+      -- Gestisci azioni specifiche
+      if item.action == "toggle3d" then
+        local Dice = require("src.graphics.dice")
+        local DiceMesh = require("src.graphics.dice_mesh")
+        local newMode = Dice.RENDER_MODE == "3d" and "2d" or "3d"
+        Dice.setRenderMode(newMode)
+        if DiceMesh and DiceMesh.setRenderMode then
+          DiceMesh.setRenderMode(newMode)
+        end
+        
+        -- Aggiorna label per riflettere stato attuale
+        item.label = newMode == "3d" and "Switch to 2D Dice" or "Switch to 3D Dice"
+        
+      elseif item.action == "stats" then
+        game.show3DStats = not game.show3DStats
+        item.label = game.show3DStats and "Hide Dice Stats" or "Show Dice Stats"
+        
+      elseif item.action == "game" then
+        print("[Options] Game settings selected")
+        
+      elseif item.action == "video" then
+        print("[Options] Video settings selected")
+        
+      elseif item.action == "audio" then
+        print("[Options] Audio settings selected")
+        
+      elseif item.label == "Exit Game" or item.label == "Quit" then
         if requestQuit then requestQuit() end
+        
       else
         if item.action then item.action() end
       end
+      
       return true
     end
   end

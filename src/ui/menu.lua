@@ -1,5 +1,7 @@
 -- Menu principale moderno in stile Balatro
 local M = {}
+local VideoSettings = require("src.ui.video_settings")
+local AudioSettings = require("src.ui.audio_settings")
 
 local hoverIdx, focusIdx = nil, 1
 local buttons = {}
@@ -8,9 +10,9 @@ local optionsDropdown = {
     open = false,
     items = {
         {id = "game", label = "GAME", onClick = function() print("GAME OPTIONS") end},
-        {id = "video", label = "VIDEO", onClick = function() print("VIDEO OPTIONS") end},
+        {id = "video", label = "VIDEO", onClick = function() VideoSettings.open() end},
         {id = "graphics", label = "GRAPHICS", onClick = function() print("GRAPHICS OPTIONS") end},
-        {id = "audio", label = "AUDIO", onClick = function() print("AUDIO OPTIONS") end}
+        {id = "audio", label = "AUDIO", onClick = function() AudioSettings.open() end}
     },
     selectedIndex = 1,
     x = 0, y = 0, w = 150, h = 0
@@ -73,8 +75,12 @@ end
 local function drawDropdown(fonts)
     if not optionsDropdown.open then return end
     
-    local itemHeight = 40
+    -- Dimensioni dinamiche per il dropdown
+    local width, height = love.graphics.getDimensions()
+    local scale = math.min(width / 960, height / 640)
+    local itemHeight = math.floor(40 * scale)
     optionsDropdown.h = #optionsDropdown.items * itemHeight
+    optionsDropdown.w = math.floor(150 * scale)
     
     -- Sfondo dropdown
     love.graphics.setColor(COLORS.dropdown)
@@ -82,7 +88,7 @@ local function drawDropdown(fonts)
     
     -- Bordo dropdown
     love.graphics.setColor(COLORS.dropdownBorder)
-    love.graphics.setLineWidth(2)
+    love.graphics.setLineWidth(math.max(1, scale))
     love.graphics.rectangle("line", optionsDropdown.x, optionsDropdown.y, optionsDropdown.w, optionsDropdown.h, 8, 8)
     
     -- Items del dropdown
@@ -96,12 +102,12 @@ local function drawDropdown(fonts)
             love.graphics.rectangle("fill", optionsDropdown.x + 2, itemY + 2, optionsDropdown.w - 4, itemHeight - 4, 6, 6)
         end
         
-        -- Testo item
+        -- Testo item con padding dinamico
         if fonts and fonts.small then
             local textColor = isHover and COLORS.accentGlow or COLORS.text
             love.graphics.setColor(textColor)
             love.graphics.setFont(fonts.small)
-            local textX = optionsDropdown.x + 10
+            local textX = optionsDropdown.x + math.floor(10 * scale)
             local textY = itemY + (itemHeight - fonts.small:getHeight()) * 0.5
             love.graphics.print(item.label, textX, textY)
         end
@@ -112,7 +118,14 @@ end
 
 function M.init()
     buttons = {
-        {id = "play", label = "PLAY", color = COLORS.play, onClick = function() print("START GAME") end},
+        {id = "play", label = "PLAY", color = COLORS.play, onClick = function(game) 
+            print("[Menu] Starting new game...")
+            if game then
+                game.state = "playing"
+                -- Inizializza una nuova partita
+                M.startNewGame(game)
+            end
+        end},
         {id = "options", label = "OPTIONS", color = COLORS.options, onClick = function() 
             optionsDropdown.open = not optionsDropdown.open
         end},
@@ -122,8 +135,36 @@ function M.init()
     focusIdx = 1
 end
 
+function M.startNewGame(game)
+    print("[Menu] Initializing new game state...")
+    if not game then return end
+
+    local GameState = require("src.game.state")
+    if GameState and GameState.startNewGame then
+        GameState.startNewGame()
+    else
+        game.state = "playing"
+        game.message = "Your turn! Roll the dice!"
+    end
+
+    if game.board3D then
+        game.board3D:setOpen(0)
+        game.board3D:animateTo(1, 1.2)
+        print("[Menu] Opening game board...")
+    end
+
+    game.buttonsNeedRefresh = true
+    print("[Menu] Game initialized - Player starts first")
+end
+
 function M.update(dt)
     accentPulse = accentPulse + dt
+    
+    -- Update video settings animations
+    VideoSettings.update(dt)
+    
+    -- Update audio settings animations
+    AudioSettings.update(dt)
 end
 
 function M.draw(fonts)
@@ -143,67 +184,71 @@ function M.draw(fonts)
     end
     
     -- Sottotitolo
-    local subtitle = "Dadi, rischio e fortuna"
-    if fonts and fonts.body then
-        local subtitleWidth = fonts.body:getWidth(subtitle)
+    local subtitle = "Dadi, rischio & fortuna"
+    if fonts and fonts.h2 then
+        local subtitleWidth = fonts.h2:getWidth(subtitle)
         local subtitleX = (width - subtitleWidth) * 0.5
-        local subtitleY = height * 0.32
-        drawShadowedText(fonts.body, subtitle, subtitleX, subtitleY, COLORS.text)
+        local subtitleY = height * 0.28
+        drawShadowedText(fonts.h2, subtitle, subtitleX, subtitleY, COLORS.textSubtle)
     end
     
-    -- Pulsanti disposti orizzontalmente
-    local buttonWidth = 200
-    local buttonHeight = 80
-    local spacing = 30
-    local totalWidth = #buttons * buttonWidth + (#buttons - 1) * spacing
+    -- Calcola layout responsivo
+    local scale = math.min(width / 960, height / 640)
+    local cardWidth = math.floor(180 * scale)
+    local cardHeight = math.floor(60 * scale)
+    local spacing = math.floor(25 * scale)
+    local totalWidth = #buttons * cardWidth + (#buttons - 1) * spacing
     local startX = (width - totalWidth) * 0.5
-    local buttonY = height * 0.55
+    local startY = height * 0.45
     
-    for i, button in ipairs(buttons) do
-        local x = startX + (i - 1) * (buttonWidth + spacing)
+    -- Disegna pulsanti principali
+    for i, btn in ipairs(buttons) do
+        local x = startX + (i - 1) * (cardWidth + spacing)
+        local y = startY
         local isHover = (hoverIdx == i)
         local isFocus = (focusIdx == i)
         
-        button.x, button.y, button.w, button.h = x, buttonY, buttonWidth, buttonHeight
+        drawMenuCard(x, y, cardWidth, cardHeight, btn.color, isHover, isFocus)
         
-        drawMenuCard(x, buttonY, buttonWidth, buttonHeight, button.color, isHover, isFocus)
-        
-        -- Testo del pulsante
         if fonts and fonts.body then
-            local textWidth = fonts.body:getWidth(button.label)
-            local textX = x + (buttonWidth - textWidth) * 0.5
-            local textY = buttonY + (buttonHeight - fonts.body:getHeight()) * 0.5
-            drawShadowedText(fonts.body, button.label, textX, textY, COLORS.text)
+            local textColor = (isHover or isFocus) and COLORS.accentGlow or COLORS.text
+            drawShadowedText(fonts.body, btn.label, x + 10, y + (cardHeight - fonts.body:getHeight()) * 0.5, textColor)
         end
         
-        -- Posiziona dropdown sotto il pulsante OPTIONS
-        if button.id == "options" then
-            optionsDropdown.x = x
-            optionsDropdown.y = buttonY + buttonHeight + 5
-        end
+        -- Memorizza posizione per click detection
+        btn.x, btn.y, btn.w, btn.h = x, y, cardWidth, cardHeight
     end
     
-    -- Disegna dropdown se aperto
-    drawDropdown(fonts)
-    
-    -- Hint controlli
-    local hint = "← → per navigare • Invio/Click per selezionare • Esc per uscire"
-    if fonts and fonts.small then
-        local hintWidth = fonts.small:getWidth(hint)
-        local hintX = (width - hintWidth) * 0.5
-        local hintY = height * 0.85
-        drawShadowedText(fonts.small, hint, hintX, hintY, {0.7, 0.7, 0.7, 1})
+    -- Disegna dropdown opzioni se aperto
+    if optionsDropdown.open then
+        drawDropdown(fonts)
     end
+    
+    -- Disegna finestre impostazioni
+    VideoSettings.draw(fonts)
+    AudioSettings.draw(fonts)
 end
 
 function M.mousepressed(x, y, button, game)
     if button ~= 1 then return end
     
+    -- Priorità alle finestre impostazioni se aperte
+    if VideoSettings.isOpen() then
+        return VideoSettings.mousepressed(x, y, button)
+    end
+    
+    if AudioSettings.isOpen() then
+        return AudioSettings.mousepressed(x, y, button)
+    end
+    
     -- Controlla click sul dropdown se aperto
     if optionsDropdown.open then
-        if x >= optionsDropdown.x and x <= optionsDropdown.x + optionsDropdown.w and 
+        if optionsDropdown.x and optionsDropdown.y and optionsDropdown.w and optionsDropdown.h and
+           x >= optionsDropdown.x and x <= optionsDropdown.x + optionsDropdown.w and 
            y >= optionsDropdown.y and y <= optionsDropdown.y + optionsDropdown.h then
-            local itemHeight = 40
+            local width, height = love.graphics.getDimensions()
+            local scale = math.min(width / 960, height / 640)
+            local itemHeight = math.floor(40 * scale)
             local clickedIndex = math.floor((y - optionsDropdown.y) / itemHeight) + 1
             if clickedIndex >= 1 and clickedIndex <= #optionsDropdown.items then
                 local item = optionsDropdown.items[clickedIndex]
@@ -219,9 +264,12 @@ function M.mousepressed(x, y, button, game)
     
     -- Controlla click sui pulsanti principali
     for i, btn in ipairs(buttons) do
-        if x >= btn.x and x <= btn.x + btn.w and y >= btn.y and y <= btn.y + btn.h then
+        if btn.x and btn.y and btn.w and btn.h and
+           x >= btn.x and x <= btn.x + btn.w and y >= btn.y and y <= btn.y + btn.h then
             focusIdx = i
-            if btn.onClick then btn.onClick() end
+            if btn.onClick then 
+                btn.onClick(game) -- Pass game parameter to onClick
+            end
             return true
         end
     end
@@ -229,6 +277,15 @@ function M.mousepressed(x, y, button, game)
 end
 
 function M.keypressed(key, game)
+    -- Priorità alle finestre impostazioni se aperte
+    if VideoSettings.isOpen() then
+        return VideoSettings.keypressed(key)
+    end
+    
+    if AudioSettings.isOpen() then
+        return AudioSettings.keypressed(key)
+    end
+    
     if optionsDropdown.open then
         -- Navigazione nel dropdown
         if key == "up" then
@@ -237,7 +294,9 @@ function M.keypressed(key, game)
             optionsDropdown.selectedIndex = math.min(#optionsDropdown.items, optionsDropdown.selectedIndex + 1)
         elseif key == "return" or key == "space" then
             local item = optionsDropdown.items[optionsDropdown.selectedIndex]
-            if item and item.onClick then item.onClick() end
+            if item and item.onClick then
+                item.onClick()
+            end
             optionsDropdown.open = false
         elseif key == "escape" then
             optionsDropdown.open = false
@@ -248,7 +307,7 @@ function M.keypressed(key, game)
     -- Navigazione menu principale
     if key == "return" or key == "space" then
         local btn = buttons[focusIdx]
-        if btn and btn.onClick then btn.onClick() end
+        if btn and btn.onClick then btn.onClick(game) end
     elseif key == "right" then
         focusIdx = math.min(#buttons, focusIdx + 1)
     elseif key == "left" then
@@ -259,11 +318,25 @@ function M.keypressed(key, game)
 end
 
 function M.mousemoved(x, y)
+    -- Priorità alle finestre impostazioni se aperte
+    if VideoSettings.isOpen() then
+        VideoSettings.mousemoved(x, y)
+        return
+    end
+    
+    if AudioSettings.isOpen() then
+        AudioSettings.mousemoved(x, y)
+        return
+    end
+    
     -- Aggiorna hover per dropdown se aperto
     if optionsDropdown.open then
-        if x >= optionsDropdown.x and x <= optionsDropdown.x + optionsDropdown.w and 
+        if optionsDropdown.x and optionsDropdown.y and optionsDropdown.w and optionsDropdown.h and
+           x >= optionsDropdown.x and x <= optionsDropdown.x + optionsDropdown.w and 
            y >= optionsDropdown.y and y <= optionsDropdown.y + optionsDropdown.h then
-            local itemHeight = 40
+            local width, height = love.graphics.getDimensions()
+            local scale = math.min(width / 960, height / 640)
+            local itemHeight = math.floor(40 * scale)
             local hoverIndex = math.floor((y - optionsDropdown.y) / itemHeight) + 1
             if hoverIndex >= 1 and hoverIndex <= #optionsDropdown.items then
                 optionsDropdown.selectedIndex = hoverIndex
@@ -275,11 +348,20 @@ function M.mousemoved(x, y)
     -- Aggiorna hover per pulsanti principali
     hoverIdx = nil
     for i, btn in ipairs(buttons) do
-        if x >= btn.x and x <= btn.x + btn.w and y >= btn.y and y <= btn.y + btn.h then
+        if btn.x and btn.y and btn.w and btn.h and
+           x >= btn.x and x <= btn.x + btn.w and y >= btn.y and y <= btn.y + btn.h then
             hoverIdx = i
             break
         end
     end
+end
+
+function M.mousereleased(x, y, button)
+    -- Gestisci rilascio mouse per audio settings (slider)
+    if AudioSettings.isOpen() then
+        return AudioSettings.mousereleased(x, y, button)
+    end
+    return false
 end
 
 return M

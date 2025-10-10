@@ -43,7 +43,7 @@ function State.resetTurn(newMessage)
     State.game.rolling = false
     State.game.rollTimer = 0
     State.game.winner = nil
-    State.game.message = newMessage or "Click Roll Dice to begin."
+    State.game.message = newMessage or "Press Roll Dice to begin."
     if State.game.ai and State.game.ai.reset then State.game.ai:reset() end
     State.game.buttonsNeedRefresh = true
 end
@@ -53,7 +53,7 @@ function State.startNewGame()
         player.banked = 0
     end
     State.game.active = 1
-    State.resetTurn("Click Roll Dice to begin.")
+    State.resetTurn("Your turn. Press Roll Dice to begin.")
     State.game.state = "playing"
     State.game.winner = nil
     State.game.buttonsNeedRefresh = true
@@ -117,20 +117,38 @@ function State.startRoll(layout)
     local tray = layout.trays[getActivePlayer().id]
     local roll = currentRoll()
     if #roll == 0 then
-        for _ = 1, State.game.diceLeft do
-            local die = Dice.newDie(tray)
+        -- Definisci distribuzione di tipi di dado per il gioco
+        -- Per ora: 60% fair, 30% loaded, 10% cursed
+        local typeDistribution = {
+            fair = 0.6,
+            loaded = 0.3,
+            cursed = 0.1
+        }
+        
+        -- Crea roll con tipi misti usando la nuova funzione
+        local newRoll = Dice.createMixedRoll(tray, State.game.diceLeft, typeDistribution)
+        
+        -- Aggiungi i dadi al roll corrente
+        for _, die in ipairs(newRoll) do
             die.locked = false
             die.isRolling = true
             die.particles = nil
             table.insert(roll, die)
         end
-        Dice.initialScatter(tray, roll)
+        
+        -- Applica scatter iniziale se la funzione esiste
+        if Dice.initialScatter then
+            Dice.initialScatter(tray, roll)
+        end
     else
         for _, die in ipairs(roll) do
             if not die.locked then
                 die.isRolling = true
                 die.particles = nil
-                Dice.applyThrowImpulse(die, tray)
+                -- Applica impulso se la funzione esiste
+                if Dice.applyThrowImpulse then
+                    Dice.applyThrowImpulse(die, tray)
+                end
             end
         end
     end
@@ -221,6 +239,24 @@ function State.attemptBank(winningScore)
         return bankRound(winningScore)
     end
     return false
+end
+
+function State.keepSelection()
+    if State.game.rolling then return false end
+    local active = getActivePlayer()
+    if not active or active.isAI then return false end
+    local roll = currentRoll()
+    if not roll or #roll == 0 then
+        State.game.message = "Roll before keeping dice."
+        return false
+    end
+    local ok, removed = consumeSelection()
+    if not ok or (removed or 0) == 0 then
+        State.game.message = "Select scoring dice to keep."
+        return false
+    end
+    State.game.buttonsNeedRefresh = true
+    return true
 end
 
 function State.toggleLockAt(x, y)

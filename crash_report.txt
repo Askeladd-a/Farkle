@@ -1,3 +1,27 @@
 === CRASH REPORT FARKLE ===
-Data: 2025-10-10 00:55:31
+Data: 2025-10-10 04:41:04
 
+[CrashReporter] Impossibile ottenere informazioni di sistema: src/core/crash_reporter.lua:17: attempt to index field 'love_version' (a number value)
+
+--- Game State ---
+Nessun dato di gioco disponibile
+=== STACK TRACE ===
+Errore: src/graphics/dice_mesh.lua:116: attempt to call field 'getOppositeValue' (a nil value)
+
+Stack Trace:
+stack traceback:
+	src/core/crash_reporter.lua:66: in function <src/core/crash_reporter.lua:58>
+	[C]: in function 'pcall'
+	src/core/crash_reporter.lua:153: in function 'saveCrashReport'
+	src/core/crash_reporter.lua:172: in function 'handleCrash'
+	src/core/crash_reporter.lua:219: in function 'handler'
+	[love "boot.lua"]:352: in function 'getOppositeValue'
+	src/graphics/dice_mesh.lua:116: in function 'renderDie3D'
+	src/graphics/dice.lua:73: in function 'drawDie'
+	src/render.lua:42: in function 'drawIsometricDice'
+	src/game.lua:279: in function 'draw'
+	main.lua:12: in function 'draw'
+	[love "callbacks.lua"]:168: in function <[love "callbacks.lua"]:144>
+	[C]: in function 'xpcall'
+	[love "boot.lua"]:377: in function <[love "boot.lua"]:344>
+=== FINE REPORT ===

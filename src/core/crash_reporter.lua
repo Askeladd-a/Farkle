@@ -135,9 +135,27 @@ local function saveCrashReport(err)
     file:write("Data: " .. os.date("%Y-%m-%d %H:%M:%S") .. "\n")
     file:write("\n")
     
-    file:write(formatSystemInfo())
-    file:write(CrashReporter.dumpGameState())
-    file:write(formatStackTrace(err))
+    local ok_sys, sysInfo = pcall(formatSystemInfo)
+    if ok_sys then
+        file:write(sysInfo)
+    else
+        file:write("[CrashReporter] Impossibile ottenere informazioni di sistema: " .. tostring(sysInfo) .. "\n\n")
+    end
+
+    local ok_game, gameInfo = pcall(CrashReporter.dumpGameState)
+    if ok_game then
+        file:write(gameInfo)
+        file:write("\n")
+    else
+        file:write("[CrashReporter] Impossibile ottenere stato del gioco: " .. tostring(gameInfo) .. "\n\n")
+    end
+
+    local ok_stack, stackInfo = pcall(formatStackTrace, err)
+    if ok_stack then
+        file:write(stackInfo)
+    else
+        file:write("[CrashReporter] Impossibile ottenere stack trace: " .. tostring(stackInfo) .. "\n\n")
+    end
     
     file:write("=== FINE REPORT ===\n")
     
