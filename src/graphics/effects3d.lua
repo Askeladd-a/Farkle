@@ -58,7 +58,8 @@ function ParticleSystem3D.new(opts)
   opts = opts or {}
   local self = {
     particles = {},
-    projectionMode = opts.projectionMode or "isometric"
+    projectionMode = opts.projectionMode or "isometric",
+    maxParticles = opts.maxParticles or 1000
   }
   setmetatable(self, {__index = ParticleSystem3D})
   return self
@@ -82,7 +83,7 @@ end
 function ParticleSystem3D:update(dt)
   if not self.particles then return end
   for i, p in ipairs(self.particles) do
-    p.pos = p.pos:add(p.vel:scale(dt))
+    p.pos = p.pos:add(p.vel:mul(dt))
     p.life = (p.life or 1) - dt
     if p.life <= 0 then self.particles[i] = nil end
   end

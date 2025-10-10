@@ -173,12 +173,8 @@ function Matrix4.orthographic(left, right, bottom, top, near, far)
 end
 
 -- ===== CAMERA SYSTEM =====
--- Sostituisci la dichiarazione delle camere:
-local cameras = {
-    perspective = Camera3D.new({projection = "perspective", z = 8}),
-    isometric = Camera3D.new({projection = "isometric", x = 5, y = 5, z = 5, size = 40}),
-    orthographic = Camera3D.new({projection = "orthographic", z = 5, size = 40})
-}
+local Camera3D = {}
+Camera3D.__index = Camera3D
 
 function Camera3D.new(opts)
     opts = opts or {}
@@ -240,21 +236,22 @@ function Camera3D:updateMatrices()
     )
     
     -- Projection matrix
-        elseif self.projection == "orthographic" then
-    local size = self.size or 40
-    self.projMatrix = Matrix4.orthographic(-size, size, -size, size, self.near, self.far)
-elseif self.projection == "isometric" then
-    -- Isometric is orthographic with specific camera angle
-    local size = self.size or 40
-    self.projMatrix = Matrix4.orthographic(-size, size, -size, size, self.near, self.far)
-    -- Apply isometric rotation
-    local isoRot = Matrix4.rotationX(math.rad(35.264)):mul(Matrix4.rotationY(math.rad(45)))
-    self.viewMatrix = isoRot:mul(self.viewMatrix)
+    if self.projection == "perspective" then
+        self.projMatrix = Matrix4.perspective(self.fov, self.aspect, self.near, self.far)
+    elseif self.projection == "orthographic" then
+        local size = self.size or 40
+        self.projMatrix = Matrix4.orthographic(-size, size, -size, size, self.near, self.far)
+    elseif self.projection == "isometric" then
+        -- Isometric is orthographic with specific camera angle
+        local size = self.size or 40
+        self.projMatrix = Matrix4.orthographic(-size, size, -size, size, self.near, self.far)
+        -- Apply isometric rotation
+        local isoRot = Matrix4.rotationX(math.rad(35.264)):mul(Matrix4.rotationY(math.rad(45)))
+        self.viewMatrix = isoRot:mul(self.viewMatrix)
     end
     
     self.viewProjMatrix = self.projMatrix:mul(self.viewMatrix)
     self.dirty = false
-    end
 end
 
 function Camera3D:project(point3d)
