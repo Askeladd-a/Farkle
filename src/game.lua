@@ -188,6 +188,12 @@ function M.init()
     game.message = "Welcome back!"
     Audio.init()
     print("[Game.init] Audio initialized")
+    
+    -- Initialize custom cursor
+    local Cursor = require("src.cursor")
+    Cursor.load()
+    print("[Game.init] Cursor initialized")
+    
     game.buttonsNeedRefresh = true
 end
 
@@ -239,6 +245,9 @@ function M.draw()
     if game.state == "menu" then
         local Menu = require("src.ui.menu")
         Menu.draw(game.fonts)
+        -- Draw custom cursor on menu too
+        local Cursor = require("src.cursor")
+        Cursor.draw()
         return
     end
     local layout = game.layout
@@ -296,6 +305,10 @@ function M.draw()
         Guide.draw(game.fonts)
     end
     OptionsUI.draw(game, game.fonts)
+    
+    -- Draw custom cursor (should be last to appear on top)
+    local Cursor = require("src.cursor")
+    Cursor.draw()
 end
 
 function M.mousepressed(x, y, button)

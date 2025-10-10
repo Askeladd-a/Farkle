@@ -1,68 +1,94 @@
--- Cursor module: manages custom idle cursor and stamped click animation
+-- Cursor module: manages custom cursor drawing and click animations
 local Cursor = {}
 
-local idle
-local frames = {}
+local cursorImage
+local clickFrames = {}
 local frameIndex = 1
 local animTime = 0
-local playing = false
+local isClickPlaying = false
 local frameDuration = 0.035 -- 35ms ~28fps
-
-local function setCursor(cur)
-  if cur then
-    pcall(love.mouse.setCursor, cur)
-  end
-end
+local mouseVisible = true
 
 function Cursor.load()
-  -- Load idle
-  do
-    local okIdle, imgIdle = pcall(love.graphics.newImage, "images/cursor/idle/1.png")
-    if okIdle and imgIdle then
-      local okC, cur = pcall(love.mouse.newCursor, imgIdle:getData(), 0, 0)
-      if okC and cur then
-        idle = cur
-        setCursor(idle)
-      end
-    end
+  -- Load idle cursor image
+  local success, img = pcall(love.graphics.newImage, "assets/cursor/idle/1.png")
+  if success and img then
+    cursorImage = img
+    -- Hide system cursor and set grab to window
+    love.mouse.setVisible(false)
+    love.mouse.setGrab(true)
+    mouseVisible = false
+    print("[Cursor] Custom cursor loaded successfully from assets/cursor/idle/1.png")
+  else
+    print("[Cursor] Failed to load cursor image, using system cursor")
+    love.mouse.setVisible(true)
+    mouseVisible = true
   end
-  -- Load stamped frames
-  frames = {}
+  
+  -- Load stamped click animation frames
+  clickFrames = {}
   for i=1,20 do
-    local path = string.format("images/cursor/Stamped/%d.png", i)
-    local okImg, img = pcall(love.graphics.newImage, path)
-    if okImg and img then
-      local okC, cur = pcall(love.mouse.newCursor, img:getData(), 0, 0)
-      if okC and cur then frames[#frames+1] = cur end
+    local path = string.format("assets/cursor/Stamped/%d.png", i)
+    local okImg, frameImg = pcall(love.graphics.newImage, path)
+    if okImg and frameImg then
+      clickFrames[#clickFrames+1] = frameImg
     end
   end
-  print(string.format("[Cursor] idle=%s frames=%d", idle and "OK" or "NO", #frames))
+  print(string.format("[Cursor] Loaded %d click animation frames", #clickFrames))
 end
 
 function Cursor.startClick()
-  if #frames == 0 then return end
-  playing = true
+  if #clickFrames == 0 then return end
+  isClickPlaying = true
   frameIndex = 1
   animTime = 0
-  setCursor(frames[1])
+  print("[Cursor] Starting click animation")
 end
 
 function Cursor.update(dt, onFinished)
-  if not playing then return end
+  if not isClickPlaying then return end
   animTime = animTime + dt
-  while animTime >= frameDuration and playing do
+  while animTime >= frameDuration and isClickPlaying do
     animTime = animTime - frameDuration
     frameIndex = frameIndex + 1
-    if frameIndex > #frames then
-      playing = false
+    if frameIndex > #clickFrames then
+      isClickPlaying = false
       if onFinished then pcall(onFinished) end
-      setCursor(idle)
-    else
-      setCursor(frames[frameIndex])
+      print("[Cursor] Click animation finished")
     end
   end
 end
 
-function Cursor.isPlaying() return playing end
+function Cursor.draw()
+  if not cursorImage or mouseVisible then return end
+  
+  local mx, my = love.mouse.getPosition()
+  
+  -- Draw cursor image centered on mouse position
+  if isClickPlaying and frameIndex <= #clickFrames then
+    -- Draw click animation frame
+    local frame = clickFrames[frameIndex]
+    if frame then
+      love.graphics.draw(frame, mx - frame:getWidth() / 2, my - frame:getHeight() / 2)
+    end
+  else
+    -- Draw idle cursor
+    love.graphics.draw(cursorImage, mx - cursorImage:getWidth() / 2, my - cursorImage:getHeight() / 2)
+  end
+end
+
+function Cursor.isPlaying() 
+  return isClickPlaying 
+end
+
+function Cursor.setVisible(visible)
+  mouseVisible = visible
+  love.mouse.setVisible(visible)
+  if visible then
+    love.mouse.setGrab(false)
+  else
+    love.mouse.setGrab(true)
+  end
+end
 
 return Cursor
