@@ -11,13 +11,16 @@ local Layout = require("src.layout")
 local Theme = require("src.theme")
 local Dice = require("src.graphics.dice")
 local DiceMesh = require("src.graphics.dice_mesh")
-local Board3D = require("src.graphics.board3d")
+local Board3D = require("src.graphics.board")
 local Particles = require("src.effects.particles")
 local CrashReporter = require("src.core.crash_reporter")
 local EmbeddedAssets = require("src.core.embedded_assets")
 local scoring = require("src.core.scoring")
 local AIController = require("src.core.ai")
 local constants = require("src.core.constants")
+local Projection3D = require("src.graphics.projection3d")
+local Effects3D = require("src.graphics.effects3d")
+local Board3DRealistic = require("src.graphics.board3d_realistic")
 
 local game = {
     state = "menu",
@@ -165,20 +168,18 @@ function M.init()
     print("[Game.init] Menu background loaded")
     
     -- Initialize 3D Board
-    local CX, CY = love.graphics.getWidth()/2, love.graphics.getHeight()/2
-    game.board3D = Board3D.new{
-        x = CX, y = CY, 
-        w = 720, h = 440, 
-        t = 28, inset = 18,
-        tex = "assets/UI/wooden_board.png",
-        scallop = true,          -- Abilita bordi scalloped
-        scallop_r = 14,          -- Raggio dei denti
-        scallop_segments = 8,    -- Smoothness
-        frameW = 12              -- Larghezza cornice
-    }
-    print("[Game.init] Board3D created")
-    game.board3D:setOpen(0)   -- Chiusa, pronta per animazione
-    print("[Game.init] Board3D closed")
+        local CX, CY = love.graphics.getWidth()/2, love.graphics.getHeight()/2
+        game.board3D = Board3DRealistic.new{
+            x = CX, y = CY, z = 0,
+            openAmount = 1.0,
+            projectionMode = "isometric"
+        }
+        print("[Game.init] Board3DRealistic created")
+        game.board3D:setOpen(1)   -- Aperta di default
+        print("[Game.init] Board3D opened")
+        -- Imposta proiezione 3D di default
+        Projection3D.setCamera("isometric")
+        Effects3D.setProjectionMode("isometric")
     
     -- Carica atlas XML e texture PNG per dado 3D
     local USE_BORDER_ATLAS = true
@@ -188,6 +189,14 @@ function M.init()
     game.message = "Welcome back!"
     Audio.init()
     print("[Game.init] Audio initialized")
+
+        -- Inizializza sistema dadi 3D
+        if DiceMesh and DiceMesh.load then
+            DiceMesh.load()
+            DiceMesh.setBoard(game.board3D)
+            DiceMesh.setMode("isometric")
+            print("[Game.init] DiceMesh 3D ready")
+        end
     
     -- Initialize custom cursor
     local Cursor = require("src.cursor")
@@ -217,6 +226,14 @@ function M.update(dt)
     -- Update 3D Board
     if game.board3D then
         game.board3D:update(dt)
+    end
+    -- Update DiceMesh 3D
+    if DiceMesh and DiceMesh.update then
+        DiceMesh.update(dt)
+    end
+    -- Update Effects3D
+    if Effects3D and Effects3D.update then
+        Effects3D.update(dt)
     end
     
     if game.rolls then
@@ -258,44 +275,30 @@ function M.draw()
         love.graphics.print("Finestra troppo piccola!", 10, 10)
         return
     end
-    Render.safeDrawBoard(game.boardImage, layout)
-    
-    -- Draw 3D Board (before dice so dice appear on top)
+    -- Disegna board 3D
     if game.board3D then
         game.board3D:draw()
     end
-    
+    -- Disegna dadi 3D
+    if DiceMesh and DiceMesh.draw then
+        DiceMesh.draw()
+    end
+    -- Effetti 3D
+    if Effects3D and Effects3D.draw then
+        Effects3D.draw()
+    end
+    -- UI classica
     Render.drawScoreboard(layout, game.fonts, game)
     Render.drawLog(layout, game.fonts, game)
     Render.drawActionButtons(layout, game.fonts, game)
-    if layout.trays and layout.trays.ai and layout.trays.player then
-        Render.drawIsometricTray(layout.trays.ai)
-        Render.drawIsometricTray(layout.trays.player)
-    end
-    if layout.kept and layout.kept.ai and layout.kept.player then
-        Render.drawIsometricKeptColumn(game.kept.ai, layout.kept.ai)
-        Render.drawIsometricKeptColumn(game.kept.player, layout.kept.player)
-    end
-    -- Dadi
-    local drawList = {}
-    if game.rolls and game.rolls.ai then
-        for _, die in ipairs(game.rolls.ai) do table.insert(drawList, die) end
-    end
-    if game.rolls and game.rolls.player then
-        for _, die in ipairs(game.rolls.player) do table.insert(drawList, die) end
-    end
-    table.sort(drawList, function(a, b) return (a.y + (a.z or 0)) < (b.y + (b.z or 0)) end)
-    Render.drawIsometricDice(drawList)
-    
     -- Statistiche 3D (se abilitate)
-    if game.show3DStats then
-        Render.drawDiceTypeStats(game, game.fonts, 10, 60, true)
+    if game.show3DStats and DiceMesh and DiceMesh.drawStats then
+        DiceMesh.drawStats(game, game.fonts, 10, 60, true)
     end
-    
     -- Info modalità rendering
     if game.fonts and game.fonts.tiny then
         love.graphics.setColor(0.7, 0.7, 0.7, 0.8)
-        local modeText = "Dice Mode: " .. (Dice.RENDER_MODE == "3d" and "3D Mesh" or "2D Sprite")
+        local modeText = "Dice Mode: 3D Mesh"
         love.graphics.print(modeText, game.fonts.tiny, 10, 10)
     end
     
@@ -398,6 +401,11 @@ function M.keypressed(key)
         if game.state == "playing" then
             local active = GameState.getActivePlayer and GameState.getActivePlayer()
             if not (active and active.isAI) then
+                -- Rilancia i dadi 3D
+                if DiceMesh and DiceMesh.reroll then
+                    DiceMesh.reroll()
+                    print("[Game] DiceMesh 3D reroll")
+                end
                 GameState.attemptRoll(game.layout)
                 game.buttonsNeedRefresh = true
             end
@@ -444,18 +452,40 @@ function M.keypressed(key)
         -- Torna alla risoluzione di default
         love.window.setMode(960, 640)
         print("[Game] Resolution set to 960x640 (default)")
-    elseif key == "f8" then
-        -- Toggle Board3D apertura/chiusura
-        if game.board3D then
-            local currentOpen = math.abs(game.board3D.top.ang) > 0.1
-            if currentOpen then
-                game.board3D:animateTo(0, 0.8)  -- Chiudi
-                print("[Game] Closing 3D Board")
-            else
-                game.board3D:animateTo(1, 0.8)  -- Apri
-                print("[Game] Opening 3D Board")
-            end
+    elseif key == "f7" then
+        -- Toggle dice render mode 2D/3D
+        local prev = Dice.RENDER_MODE
+        if prev == "3d" then
+            Dice.setRenderMode("2d")
+            print("[Game] Dice render mode -> 2D")
+        else
+            Dice.setRenderMode("3d")
+            print("[Game] Dice render mode -> 3D")
         end
+    elseif key == "tab" then
+            -- Cambia proiezione 3D
+            local modes = {"isometric", "perspective", "orthographic"}
+            local current = Projection3D.cameraMode or "isometric"
+            local idx = 1
+            for i, m in ipairs(modes) do if m == current then idx = i end end
+            local nextMode = modes[(idx % #modes) + 1]
+            Projection3D.setCamera(nextMode)
+            Effects3D.setProjectionMode(nextMode)
+            if DiceMesh and DiceMesh.setMode then DiceMesh.setMode(nextMode) end
+            if game.board3D and game.board3D.setProjectionMode then game.board3D:setProjectionMode(nextMode) end
+            print("[Game] 3D projection mode -> "..nextMode)
+    elseif key == "f8" then
+            -- Toggle Board3D apertura/chiusura
+            if game.board3D and game.board3D.animateTo then
+                local currentOpen = game.board3D.openAmount > 0.5
+                if currentOpen then
+                    game.board3D:animateTo(0, 0.8)  -- Chiudi
+                    print("[Game] Closing 3D Board")
+                else
+                    game.board3D:animateTo(1, 0.8)  -- Apri
+                    print("[Game] Opening 3D Board")
+                end
+            end
     elseif key == "f9" then
         -- Board3D aperta parzialmente (50%)
         if game.board3D then

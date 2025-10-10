@@ -1,6 +1,0 @@
-
-local Game = require("src.game")
-
--- Funzione love.load rimossa per evitare duplicati
-
--- Funzioni Love2D rimosse per evitare conflitti con main.lua

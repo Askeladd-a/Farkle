@@ -1,29 +1,71 @@
 - `lib/dice_animations.lua`: spritesheet/atlas loader, multi‑speed rolling
-# Dice & Debts
+# Farkle 3D
 
-Single‑player dice game built with [LÖVE](https://love2d.org/). You duel an AI across a wooden board: roll, lock scoring dice, risk another throw, or bank before you bust. Presentation takes cues from card‑roguelikes: clear trays, hinge HUD, and responsive SFX.
+Advanced 3D Farkle game built with [LÖVE](https://love2d.org/) using mathematical projections for pseudo-3D rendering. Experience realistic wooden board physics, dynamic lighting, and smooth dice animations in a traditional 2D engine.
 
-## How to run
+## 🎲 3D Features
+
+- **Mathematical Projections**: Isometric, perspective, and orthographic camera modes
+- **Realistic Physics**: 3D dice with gravity, collision detection, and momentum conservation  
+- **Dynamic Lighting**: Real-time shadows and directional lighting system
+- **Particle Effects**: 3D particle system for dust, sparks, and impact effects
+- **Wooden Board**: Realistic folding board with hinges, trays, and decorative details
+- **Multiple Render Modes**: Switch between projection types for different visual styles
+
+## 🚀 Quick Demo
+
+Run the 3D board demo to see all features in action:
+```bash
+# Windows (batch script)
+run_demo.bat
+
+# Or manually with LOVE2D
+love demo_board3d.lua
+```
+
+### Demo Controls:
+- **SPACE** - Reroll all dice
+- **TAB** - Switch projection mode (isometric/perspective/orthographic)  
+- **UP/DOWN** - Open/close the wooden board
+- **1/2** - Add dice to top/bottom tray
+- **C** - Clear all dice
+- **R** - Reset board position
+- **F** - Toggle fullscreen
+
+## 🎮 How to run
 1. Install LÖVE 11.5 (or a compatible 11.x build) from the official website.
    - **Windows** – download the `.exe` installer and follow the setup wizard. Optionally add LÖVE to your PATH so you can call `love` from the terminal.
    - **macOS** – drag `love.app` into Applications, then run `ln -s /Applications/love.app/Contents/MacOS/love /usr/local/bin/love` to expose the `love` command.
    - **Linux** – install the package provided by your distribution (`sudo pacman -S love`, `sudo apt install love`, etc.).
 2. Confirm the installation by running `love --version` in a terminal. You should see the version banner.
 3. Clone or download this repository.
-4. Launch the prototype with `love .` executed from the project folder, or drag the folder/zip onto the LÖVE executable.
+4. Launch the main game with `love .` or the 3D demo with `love demo_board3d.lua`
 
-## Controls
-- Roll Dice: throws remaining dice (or keeps selection and rerolls others)
-- Bank Points: banks round points and passes the turn
-- Guide: toggle rules overlay
-- Options: opens an anchored dropdown (Main Menu, Exit Game, Toggle Guide, Restart)
-- Select dice: left‑click a die in your tray to lock/unlock it
+## 🏗️ 3D Architecture
 
-## Game flow at a glance
+### Core 3D Systems:
+- **`src/graphics/projection3d.lua`** - Mathematical projection library (Vec3, Matrix4, Camera3D)
+- **`src/graphics/effects3d.lua`** - Advanced visual effects (shadows, particles, lighting)
+- **`src/graphics/dice_mesh.lua`** - Enhanced 3D dice with realistic physics
+- **`src/graphics/board3d_realistic.lua`** - Realistic wooden board with folding mechanism
+- **`src/ui/dice_type_ui.lua`** - UI helpers for dice statistics and tooltips
+
+### Integration:
+The 3D system is modular and integrates seamlessly with the existing Farkle game logic while providing dramatic visual enhancements.
+
+## 🎯 Game Controls
+- **Roll Dice**: throws remaining dice (or keeps selection and rerolls others)
+- **Bank Points**: banks round points and passes the turn
+- **Guide**: toggle rules overlay
+- **Options**: opens an anchored dropdown (Main Menu, Exit Game, Toggle Guide, Restart)
+- **Select dice**: left‑click a die in your tray to lock/unlock it
+
+## 📋 Game Flow
 - Player vs AI turn‑based. Active guidance appears in the message panel.
-- Dice physics are arcade‑style: energetic launch upward, elastic wall bounces, multi‑pass collision resolution.
-- Kept dice are displayed along the board hinge axis (top for AI, bottom for player).
-- If a roll has no scoring dice, the turn busts and round points are lost.
+- Enhanced 3D dice physics: realistic gravity, elastic collisions, momentum conservation
+- Kept dice are displayed along the board hinge axis (top for AI, bottom for player)
+- If a roll has no scoring dice, the turn busts and round points are lost
+- Visual feedback through particle effects, shadows, and dynamic lighting
 
 ## Code structure
 - `main.lua`: LOVE callbacks, state, rendering glue

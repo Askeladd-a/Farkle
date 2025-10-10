@@ -16,7 +16,9 @@ function Cursor.load()
     cursorImage = img
     -- Hide system cursor and set grab to window
     love.mouse.setVisible(false)
-    love.mouse.setGrab(true)
+    if love.mouse.setGrab then
+      love.mouse.setGrab(true)
+    end
     mouseVisible = false
     print("[Cursor] Custom cursor loaded successfully from assets/cursor/idle/1.png")
   else

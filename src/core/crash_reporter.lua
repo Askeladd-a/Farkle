@@ -209,6 +209,14 @@ function CrashReporter.handleCrash(err)
     end
 end
 
+function CrashReporter.handleCrashScreen()
+  function love.keypressed(key)
+    if key == "escape" then
+      love.event.quit()
+    end
+  end
+end
+
 -- Inizializza il crash reporter
 function CrashReporter.init()
     -- Imposta l'handler di errore personalizzato
