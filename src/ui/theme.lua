@@ -26,3 +26,5 @@ return {
     setColor = setColor,
     pointInRect = pointInRect
 }
+
+-- Questo modulo UI non dipende da moduli rimossi.

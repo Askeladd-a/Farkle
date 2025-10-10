@@ -1,4 +1,4 @@
--- Audio Settings Window
+select-- Audio Settings Window
 local AudioSettings = {}
 
 local window = {
@@ -129,15 +129,7 @@ function AudioSettings.open()
     window.x = math.floor((screenW - window.w) / 2)
     window.y = math.floor((screenH - window.h) / 2.2) -- Slightly higher for better visual balance
     
-    -- Load current settings
-    local Settings = require("src.core.settings")
-    local audioSettings = Settings.getCategory("audio")
-    for key, value in pairs(audioSettings) do
-        if settings[key] ~= nil then
-            settings[key] = value
-        end
-    end
-    
+    -- Disabilitato: caricamento settings
     settings.hoverElement = nil
     settings.dragElement = nil
 end
@@ -193,12 +185,7 @@ function AudioSettings.mousemoved(x, y)
                 local newValue = math.max(0, math.min(1, (x - sliderX) / sliderW))
                 settings[slider[1]] = newValue
                 
-                -- Apply volume change immediately for feedback
-                local Audio = require("src.audio")
-                if slider[1] == "masterVolume" then
-                    love.audio.setVolume(newValue)
-                end
-                
+                -- Disabilitato: feedback audio
                 return true
             end
         end
@@ -385,13 +372,7 @@ function AudioSettings.mousepressed(x, y, button)
         end
     end
     
-    -- Check test button
-    if settings.testArea and x >= settings.testArea.x and x <= settings.testArea.x + settings.testArea.w and
-       y >= settings.testArea.y and y <= settings.testArea.y + settings.testArea.h then
-        local Audio = require("src.audio")
-        Audio.playDiceRoll(800) -- Test dice sound
-        return true
-    end
+    -- Disabilitato: test audio
     
     -- Check Apply
     if settings.applyArea and x >= settings.applyArea.x and x <= settings.applyArea.x + settings.applyArea.w and
@@ -432,22 +413,7 @@ function AudioSettings.mousereleased(x, y, button)
 end
 
 function AudioSettings.apply()
-    local Settings = require("src.core.settings")
-    
-    -- Save audio settings
-    Settings.setCategory("audio", {
-        masterVolume = settings.masterVolume,
-        sfxVolume = settings.sfxVolume,
-        musicVolume = settings.musicVolume,
-        diceVolume = settings.diceVolume,
-        uiVolume = settings.uiVolume,
-        ambienceVolume = settings.ambienceVolume
-    })
-    
-    -- Apply immediately
-    Settings.applyAudioSettings()
-    
-    print("[AudioSettings] Applied audio settings")
+    -- Disabilitato: salvataggio settings
     AudioSettings.close()
 end
 

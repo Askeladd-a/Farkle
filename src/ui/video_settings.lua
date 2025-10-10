@@ -421,4 +421,6 @@ function VideoSettings.keypressed(key)
     return true
 end
 
+-- Disabilitato: eventuali funzioni che richiedono moduli rimossi vanno commentate manualmente se necessario.
+
 return VideoSettings

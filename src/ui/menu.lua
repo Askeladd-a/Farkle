@@ -135,27 +135,11 @@ function M.init()
     focusIdx = 1
 end
 
+--[[
 function M.startNewGame(game)
-    print("[Menu] Initializing new game state...")
-    if not game then return end
-
-    local GameState = require("src.game.state")
-    if GameState and GameState.startNewGame then
-        GameState.startNewGame()
-    else
-        game.state = "playing"
-        game.message = "Your turn! Roll the dice!"
-    end
-
-    if game.board3D then
-        game.board3D:setOpen(0)
-        game.board3D:animateTo(1, 1.2)
-        print("[Menu] Opening game board...")
-    end
-
-    game.buttonsNeedRefresh = true
-    print("[Menu] Game initialized - Player starts first")
+    -- Disabilitato: dipendenze da src.game.state
 end
+]]
 
 function M.update(dt)
     accentPulse = accentPulse + dt

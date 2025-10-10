@@ -1,7 +1,7 @@
 -- Game state module: encapsula logica di turno, roll, banca e selezione
 -- Estrae dal main.lua per ridurre complessità
 
-local Dice = require("src.graphics.dice")
+-- local Dice = require("src.graphics.dice") -- Disabilitato: modulo rimosso
 local scoring = require("src.core.scoring")
 
 local State = {}
@@ -126,7 +126,7 @@ function State.startRoll(layout)
         }
         
         -- Crea roll con tipi misti usando la nuova funzione
-        local newRoll = Dice.createMixedRoll(tray, State.game.diceLeft, typeDistribution)
+        -- local newRoll = Dice.createMixedRoll(tray, State.game.diceLeft, typeDistribution)
         
         -- Aggiungi i dadi al roll corrente
         for _, die in ipairs(newRoll) do
@@ -137,18 +137,18 @@ function State.startRoll(layout)
         end
         
         -- Applica scatter iniziale se la funzione esiste
-        if Dice.initialScatter then
-            Dice.initialScatter(tray, roll)
-        end
+        -- if Dice.initialScatter then
+        --     Dice.initialScatter(tray, roll)
+        -- end
     else
         for _, die in ipairs(roll) do
             if not die.locked then
                 die.isRolling = true
                 die.particles = nil
                 -- Applica impulso se la funzione esiste
-                if Dice.applyThrowImpulse then
-                    Dice.applyThrowImpulse(die, tray)
-                end
+                -- if Dice.applyThrowImpulse then
+                --     Dice.applyThrowImpulse(die, tray)
+                -- end
             end
         end
     end

@@ -3,6 +3,8 @@
 
 local Options = {}
 
+-- Questo modulo UI non dipende da moduli rimossi.
+
 local function getButtonsBounds(layout)
   local buttons = layout and layout.buttons
   if not buttons or #buttons == 0 then return nil end

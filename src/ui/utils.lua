@@ -14,3 +14,5 @@ end
 return {
     computeRects = computeRects
 }
+
+-- Questo modulo UI non dipende da moduli rimossi.
