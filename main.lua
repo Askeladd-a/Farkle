@@ -78,8 +78,7 @@ function love.draw()
     Cursor.draw()
     return
   end
-  love.graphics.setColor(1,1,1,0.9)
-  love.graphics.print("Board — R to spawn dice, ESC to menu", 12,12)
+  -- Removed board instructions text
   -- diceSprites.draw()
   Cursor.draw()
 end
