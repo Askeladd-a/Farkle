@@ -4,8 +4,8 @@ local Settings = {}
 -- Default settings
 local DEFAULT_SETTINGS = {
     video = {
-        width = 960,
-        height = 640,
+        width = 1920,
+        height = 1080,
         fullscreen = false,
         vsync = true
     },

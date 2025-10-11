@@ -1,4 +1,4 @@
-select-- Audio Settings Window
+-- Audio Settings Window
 local AudioSettings = {}
 
 local window = {

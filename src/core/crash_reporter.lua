@@ -210,11 +210,8 @@ function CrashReporter.handleCrash(err)
 end
 
 function CrashReporter.handleCrashScreen()
-  function love.keypressed(key)
-    if key == "escape" then
-      love.event.quit()
-    end
-  end
+    -- Nota: rimosso override di love.keypressed per evitare conflitto col main.
+    -- Se necessario possiamo intercettare ESC direttamente nel loop di polling.
 end
 
 -- Inizializza il crash reporter

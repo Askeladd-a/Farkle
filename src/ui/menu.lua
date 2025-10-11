@@ -5,6 +5,7 @@ local AudioSettings = require("src.ui.audio_settings")
 
 local hoverIdx, focusIdx = nil, 1
 local buttons = {}
+M.requestStartGame = false
 local accentPulse = 0
 local optionsDropdown = {
     open = false,
@@ -72,59 +73,65 @@ local function drawMenuCard(x, y, w, h, color, isHover, isFocus)
     love.graphics.setLineWidth(1)
 end
 
-local function drawDropdown(fonts)
+function drawDropdown(fonts)
     if not optionsDropdown.open then return end
-    
     -- Dimensioni dinamiche per il dropdown
     local width, height = love.graphics.getDimensions()
     local scale = math.min(width / 960, height / 640)
     local itemHeight = math.floor(40 * scale)
     optionsDropdown.h = #optionsDropdown.items * itemHeight
     optionsDropdown.w = math.floor(150 * scale)
-    
+
+    -- Posiziona il dropdown sotto il pulsante OPTIONS
+    local optionsBtn = nil
+    for i, btn in ipairs(buttons) do
+        if btn.id == "options" then optionsBtn = btn break end
+    end
+    if optionsBtn then
+        optionsDropdown.x = optionsBtn.x or 0
+        optionsDropdown.y = (optionsBtn.y or 0) + (optionsBtn.h or 60) + 8
+    else
+        optionsDropdown.x = 20
+        optionsDropdown.y = 60
+    end
+
     -- Sfondo dropdown
     love.graphics.setColor(COLORS.dropdown)
     love.graphics.rectangle("fill", optionsDropdown.x, optionsDropdown.y, optionsDropdown.w, optionsDropdown.h, 8, 8)
-    
+
     -- Bordo dropdown
     love.graphics.setColor(COLORS.dropdownBorder)
     love.graphics.setLineWidth(math.max(1, scale))
     love.graphics.rectangle("line", optionsDropdown.x, optionsDropdown.y, optionsDropdown.w, optionsDropdown.h, 8, 8)
-    
+
     -- Items del dropdown
     for i, item in ipairs(optionsDropdown.items) do
         local itemY = optionsDropdown.y + (i - 1) * itemHeight
         local isHover = (i == optionsDropdown.selectedIndex)
-        
+
         -- Sfondo item se hover
         if isHover then
             love.graphics.setColor(COLORS.dropdownHover)
             love.graphics.rectangle("fill", optionsDropdown.x + 2, itemY + 2, optionsDropdown.w - 4, itemHeight - 4, 6, 6)
         end
-        
+
         -- Testo item con padding dinamico
         if fonts and fonts.small then
             local textColor = isHover and COLORS.accentGlow or COLORS.text
-            love.graphics.setColor(textColor)
-            love.graphics.setFont(fonts.small)
             local textX = optionsDropdown.x + math.floor(10 * scale)
             local textY = itemY + (itemHeight - fonts.small:getHeight()) * 0.5
-            love.graphics.print(item.label, textX, textY)
+            drawShadowedText(fonts.small, item.label, textX, textY, textColor)
         end
     end
-    
+
     love.graphics.setLineWidth(1)
 end
 
 function M.init()
     buttons = {
         {id = "play", label = "PLAY", color = COLORS.play, onClick = function(game) 
-            print("[Menu] Starting new game...")
-            if game then
-                game.state = "playing"
-                -- Inizializza una nuova partita
-                M.startNewGame(game)
-            end
+            print("[Menu] Start pressed")
+            M.requestStartGame = true
         end},
         {id = "options", label = "OPTIONS", color = COLORS.options, onClick = function() 
             optionsDropdown.open = not optionsDropdown.open
@@ -153,22 +160,28 @@ end
 
 function M.draw(fonts)
     local width, height = love.graphics.getDimensions()
-    
+
     -- Sfondo
     love.graphics.setColor(COLORS.background)
     love.graphics.rectangle("fill", 0, 0, width, height)
-    
-    -- Titolo principale
-    local title = "FARKLE"
+
+    -- Titolo principale con solo ombra
+    local title = "Dice&Debts"
     if fonts and fonts.title then
         local titleWidth = fonts.title:getWidth(title)
         local titleX = (width - titleWidth) * 0.5
         local titleY = height * 0.2
-        drawShadowedText(fonts.title, title, titleX, titleY, COLORS.accent)
+        -- Ombra
+        love.graphics.setFont(fonts.title)
+        love.graphics.setColor(0,0,0,0.6)
+        love.graphics.print(title, titleX+2, titleY+2)
+        -- Testo principale
+        love.graphics.setColor(COLORS.accent)
+        love.graphics.print(title, titleX, titleY)
     end
-    
+
     -- Sottotitolo
-    local subtitle = "Dadi, rischio & fortuna"
+    local subtitle = "Dice, risk & fortune"
     if fonts and fonts.h2 then
         local subtitleWidth = fonts.h2:getWidth(subtitle)
         local subtitleX = (width - subtitleWidth) * 0.5

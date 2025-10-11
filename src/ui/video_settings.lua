@@ -12,16 +12,16 @@ local window = {
 local settings = {
     resolutions = {
         {w = 800, h = 600, name = "800x600"},
-        {w = 960, h = 640, name = "960x640 (Default)"},
-        {w = 1280, h = 720, name = "1280x720 (HD)"},
-        {w = 1920, h = 1080, name = "1920x1080 (Full HD)"},
-        {w = 2560, h = 1440, name = "2560x1440 (QHD)"}
+        {w = 960, h = 640, name = "960x640"},
+        {w = 1280, h = 720, name = "1280x720"},
+        {w = 1920, h = 1080, name = "1920x1080"},
+        {w = 2560, h = 1440, name = "2560x1440"}
     },
-    selectedResolution = 2,
+    selectedResolution = 4,
     fullscreen = false,
     vsync = true,
     hoverElement = nil,
-    previewMode = false
+    previewMode = true
 }
 
 -- Enhanced color theme for better readability
@@ -122,25 +122,29 @@ function VideoSettings.open()
     -- Better window centering with padding
     local screenW, screenH = love.graphics.getDimensions()
     window.x = math.floor((screenW - window.w) / 2)
-    window.y = math.floor((screenH - window.h) / 2.2) -- Slightly higher for better visual balance
+    window.y = math.floor((screenH - window.h) / 2)
     
     -- Load current settings from Settings system
     local Settings = require("src.core.settings")
     local videoSettings = Settings.getCategory("video")
     
-    -- Find matching resolution
+    -- Fallback ai valori di default se width/height sono nil
+    local defaultW, defaultH = 1920, 1080
+    if not videoSettings.width then videoSettings.width = defaultW end
+    if not videoSettings.height then videoSettings.height = defaultH end
+
     for i, res in ipairs(settings.resolutions) do
         if res.w == videoSettings.width and res.h == videoSettings.height then
             settings.selectedResolution = i
             break
         end
     end
-    
+
     settings.fullscreen = videoSettings.fullscreen
     settings.vsync = videoSettings.vsync
     settings.hoverElement = nil
-    
-    print("[VideoSettings] Loaded settings - Resolution:", videoSettings.width .. "x" .. videoSettings.height, "Fullscreen:", videoSettings.fullscreen)
+
+    print("[VideoSettings] Loaded settings - Resolution:", tostring(videoSettings.width) .. "x" .. tostring(videoSettings.height), "Fullscreen:", tostring(videoSettings.fullscreen))
 end
 
 function VideoSettings.close()
