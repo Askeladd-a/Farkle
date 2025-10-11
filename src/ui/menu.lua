@@ -19,19 +19,20 @@ local optionsDropdown = {
     x = 0, y = 0, w = 150, h = 0
 }
 
--- Colori del tema
+-- Colori del tema aggiornati per il nuovo background
 local COLORS = {
-    background = {0.05, 0.07, 0.12, 1},
+    background = {0.05, 0.07, 0.12, 1}, -- Non più usato (gestito da shader)
     card = {0.08, 0.12, 0.18, 0.9},
     cardBorder = {0.25, 0.35, 0.55, 0.8},
     cardHover = {0.12, 0.16, 0.24, 0.95},
-    accent = {0.98, 0.75, 0.32, 1},
-    accentGlow = {0.98, 0.85, 0.45, 1},
-    text = {0.92, 0.94, 0.98, 1},
+    accent = {0.784, 0.663, 0.420, 1}, -- #C8A96B - oro
+    accentGlow = {0.902, 0.851, 0.690, 1}, -- #E6D9B0 - accenti tuoi
+    text = {0.835, 0.804, 0.722, 1}, -- #D5CDB8 - accenti tuoi
     textShadow = {0.02, 0.02, 0.05, 0.8},
+    textSubtle = {0.6, 0.58, 0.54, 1}, -- Sottotitoli più soft
     play = {0.2, 0.5, 0.8, 1},         -- Blu
     options = {0.8, 0.5, 0.2, 1},      -- Arancione
-    quit = {0.8, 0.2, 0.2, 1},         -- Rosso
+    quit = {0.776, 0.325, 0.325, 1},   -- #C65353 - rosso avversario
     collectibles = {0.2, 0.7, 0.4, 1}, -- Verde
     dropdown = {0.1, 0.15, 0.22, 0.95},
     dropdownBorder = {0.3, 0.4, 0.6, 1},
@@ -161,9 +162,9 @@ end
 function M.draw(fonts)
     local width, height = love.graphics.getDimensions()
 
-    -- Sfondo
-    love.graphics.setColor(COLORS.background)
-    love.graphics.rectangle("fill", 0, 0, width, height)
+    -- Sfondo ora gestito da shader in main.lua, rimuoviamo rectangle
+    -- love.graphics.setColor(COLORS.background)
+    -- love.graphics.rectangle("fill", 0, 0, width, height)
 
     -- Titolo principale con solo ombra
     local title = "Dice&Debts"

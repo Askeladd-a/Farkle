@@ -7,10 +7,35 @@ local Cursor = require("src.ui.cursor")
 -- local diceSprites = require("src.dice_sprites")
 local gameState = "menu"
 local fonts = {}
+local mouseX, mouseY = 0, 0
+
+-- Background shader with radial gradient, vignette, and subtle parallax
+local bgShader = love.graphics.newShader[[
+uniform vec2 u_mouse;
+vec4 effect(vec4 color, Image tex, vec2 uv, vec2 px){
+    // Centro leggermente sopra il board con parallasse soft
+    vec2 center = vec2(0.5, 0.42) + u_mouse * 0.01;
+    float d = distance(uv, center);
+
+    // Gradiente radiale scuro
+    float g = smoothstep(0.95, 0.25, d);
+    vec3 base = mix(vec3(0.054,0.058,0.078), vec3(0.094,0.101,0.133), g);
+
+    // Vignettatura
+    float vig = smoothstep(0.9, 0.4, d);
+
+    // Rumore fine economico
+    float n = fract(sin(dot(uv*love_ScreenSize.xy*0.01, vec2(12.9898,78.233))) * 43758.5453);
+    n = (n - 0.5) * 0.025; // ±2.5%
+
+    vec3 col = base * (0.92 + n) * mix(1.0, 0.85, vig);
+    return vec4(col, 1.0) * color;
+}
+]]
 
 function love.load()
   love.window.setMode(1920, 1080, {resizable=true})
-  love.graphics.setBackgroundColor(0.07,0.07,0.09)
+  -- Rimuovo setBackgroundColor perché useremo lo shader per il background
   fonts.title = love.graphics.newFont("fonts/MedievalSharp-Regular.ttf", 64)
   fonts.h2    = love.graphics.newFont("fonts/MedievalSharp-Regular.ttf", 36)
   fonts.body  = love.graphics.newFont("fonts/MedievalSharp-Regular.ttf", 28)
@@ -18,6 +43,17 @@ function love.load()
   Menu.init()
   Cursor.init()
   love.mouse.setVisible(false)
+end
+
+function drawBackground()
+  love.graphics.push("all")
+  love.graphics.setShader(bgShader)
+  -- Passa coordinate mouse normalizzate allo shader
+  local w, h = love.graphics.getDimensions()
+  bgShader:send("u_mouse", {(mouseX/w - 0.5) * 2, (mouseY/h - 0.5) * 2})
+  love.graphics.rectangle("fill", 0, 0, w, h)
+  love.graphics.setShader()
+  love.graphics.pop()
 end
 
 function love.update(dt)
@@ -48,6 +84,7 @@ function love.mousereleased(x,y,b)
 end
 
 function love.mousemoved(x,y,dx,dy,istouch)
+  mouseX, mouseY = x, y -- Aggiorna posizione mouse per parallasse
   if gameState == 'menu' then
     if Menu.mousemoved then Menu.mousemoved(x,y) end
   end
@@ -59,7 +96,7 @@ function love.keypressed(k)
     if Menu.keypressed then Menu.keypressed(k, {state=gameState}) end
     if k=='return' then
       gameState = "playing"
-      diceSprites.spawn(6)
+      -- diceSprites.spawn(6) -- commentato perché non implementato
     elseif k=='escape' then
       love.event.quit()
     end
@@ -73,6 +110,9 @@ function love.keypressed(k)
 end
 
 function love.draw()
+  -- Disegna background con shader per tutti gli stati
+  drawBackground()
+  
   if gameState == "menu" then
     Menu.draw(fonts)
     Cursor.draw()
